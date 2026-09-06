@@ -1,6 +1,12 @@
 # Secrets — ne jamais commiter
 .env
 
+# Espace de travail local : rapports, analyses, captures HAR.
+# Une capture HAR de connexion contient identifiants, mot de passe en clair et
+# données personnelles : ce dossier ne doit jamais partir sur GitHub.
+.dev/
+*.har
+
 # Artefacts Python
 __pycache__/
 *.pyc
@@ -11,10 +17,15 @@ __pycache__/
 temp_trip.gpx
 *.gpx
 velib_history.json
-stations_cache.json
 
-.dev/
-
-# NB : processed_trips.json EST volontairement versionné.
-# C'est le fichier d'état que le workflow GitHub Actions commite à chaque
-# exécution pour se souvenir des trajets déjà envoyés sur Strava.
+# NB : processed_trips.json ET stations_cache.json sont volontairement
+# versionnés — ne pas les ajouter ci-dessus.
+#
+# Le premier est l'état des trajets déjà envoyés sur Strava.
+#
+# Le second est le référentiel des stations. L'API Vélib' désigne ses stations
+# par un identifiant interne (« 128920403 ») que seul l'open data Smovengo
+# publie — or ce service est actuellement hors ligne. Le fichier versionné
+# contient une copie archivée qui résout 92 % des stations ; sans lui, aucun
+# trajet ne peut être géolocalisé. Le workflow le rafraîchit automatiquement
+# dès que Smovengo redevient joignable.

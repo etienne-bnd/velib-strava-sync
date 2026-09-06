@@ -1,5 +1,69 @@
 {
-  "version": 1,
-  "updated_at": "1970-01-01T00:00:00Z",
-  "processed": {}
+  "processed": {
+    "2026-08-09T13:04:11Z": {
+      "alias_of": "21637846595"
+    },
+    "2026-08-10T18:20:10Z": {
+      "alias_of": "21641336641"
+    },
+    "2026-08-11T12:31:11Z": {
+      "alias_of": "21643275455"
+    },
+    "2026-08-11T12:44:18Z": {
+      "alias_of": "21643300221"
+    },
+    "2026-08-14T13:44:54Z": {
+      "alias_of": "21651831317"
+    },
+    "2026-08-28T19:35:18Z": {
+      "alias_of": "21693059705"
+    },
+    "2026-09-05T19:36:53Z": {
+      "alias_of": "21723430775"
+    },
+    "21637846595": {
+      "duration_seconds": 667,
+      "note": "écarté : Station '20458486160' absente de l'open data Smovengo (station supprimée, ou identifiant d'un autre référentiel).",
+      "start_time": "2026-08-09T13:04:11Z",
+      "synced_at": "2026-09-06T16:35:45Z"
+    },
+    "21641336641": {
+      "duration_seconds": 1062,
+      "note": "écarté : Station '20458486160' absente de l'open data Smovengo (station supprimée, ou identifiant d'un autre référentiel).",
+      "start_time": "2026-08-10T18:20:10Z",
+      "synced_at": "2026-09-06T16:35:48Z"
+    },
+    "21643275455": {
+      "duration_seconds": 711,
+      "note": "écarté : Station '19006016846' absente de l'open data Smovengo (station supprimée, ou identifiant d'un autre référentiel).",
+      "start_time": "2026-08-11T12:31:11Z",
+      "synced_at": "2026-09-06T16:35:48Z"
+    },
+    "21643300221": {
+      "duration_seconds": 566,
+      "note": "écarté : Station '19006016846' absente de l'open data Smovengo (station supprimée, ou identifiant d'un autre référentiel).",
+      "start_time": "2026-08-11T12:44:18Z",
+      "synced_at": "2026-09-06T16:35:48Z"
+    },
+    "21651831317": {
+      "duration_seconds": 2398,
+      "note": "écarté : Station '20458486160' absente de l'open data Smovengo (station supprimée, ou identifiant d'un autre référentiel).",
+      "start_time": "2026-08-14T13:44:54Z",
+      "synced_at": "2026-09-06T16:35:48Z"
+    },
+    "21693059705": {
+      "duration_seconds": 1331,
+      "note": "écarté : Station '20458486160' absente de l'open data Smovengo (station supprimée, ou identifiant d'un autre référentiel).",
+      "start_time": "2026-08-28T19:35:18Z",
+      "synced_at": "2026-09-06T16:36:03Z"
+    },
+    "21723430775": {
+      "duration_seconds": 1044,
+      "note": "écarté : Station '20458486160' absente de l'open data Smovengo (station supprimée, ou identifiant d'un autre référentiel).",
+      "start_time": "2026-09-05T19:36:53Z",
+      "synced_at": "2026-09-06T16:36:19Z"
+    }
+  },
+  "updated_at": "2026-09-06T16:36:19Z",
+  "version": 1
 }
