@@ -1,0 +1,11 @@
+# Dépendances d'exécution
+requests==2.32.5
+# Indispensable : velib-metropole.fr sert ses pages en Brotli. Sans ce paquet,
+# requests renvoie des octets compressés et l'extraction du CSRF échoue.
+Brotli==1.1.0
+gpxpy==1.6.2
+python-dotenv==1.1.1
+
+# Dépendances de développement / tests
+pytest==8.4.2
+responses==0.25.8

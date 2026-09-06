@@ -1,0 +1,79 @@
+name: Synchronisation Vélib' vers Strava
+
+on:
+  schedule:
+    # Tous les jours à 23h30 UTC (00h30 ou 01h30 à Paris selon la saison).
+    - cron: "30 23 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Simulation : construire les GPX sans rien envoyer sur Strava"
+        type: boolean
+        default: false
+      max_trips:
+        description: "Nombre maximum de trajets traités"
+        type: string
+        default: "25"
+
+# Nécessaire pour que l'étape de commit automatique puisse pousser sur le dépôt.
+permissions:
+  contents: write
+
+# Une seule exécution à la fois : deux exécutions concurrentes réécriraient
+# toutes deux processed_trips.json et provoqueraient des doublons.
+concurrency:
+  group: velib-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: Synchroniser les trajets
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Récupérer le dépôt
+        uses: actions/checkout@v4
+
+      - name: Installer Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Installer les dépendances
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Lancer la synchronisation
+        env:
+          VELIB_USERNAME: ${{ secrets.VELIB_USERNAME }}
+          VELIB_PASSWORD: ${{ secrets.VELIB_PASSWORD }}
+          STRAVA_CLIENT_ID: ${{ secrets.STRAVA_CLIENT_ID }}
+          STRAVA_CLIENT_SECRET: ${{ secrets.STRAVA_CLIENT_SECRET }}
+          STRAVA_REFRESH_TOKEN: ${{ secrets.STRAVA_REFRESH_TOKEN }}
+          ORS_API_KEY: ${{ secrets.ORS_API_KEY }}
+          PROJECT_REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+          MAX_TRIPS_PER_RUN: ${{ github.event.inputs.max_trips || '25' }}
+          DRY_RUN: ${{ github.event.inputs.dry_run == 'true' && '1' || '0' }}
+        run: python main.py
+
+      - name: Commiter l'état et le référentiel des stations
+        # `always()` : même si la synchronisation s'est terminée en erreur, les
+        # trajets déjà envoyés doivent être mémorisés, sans quoi ils repartiraient
+        # en doublon le lendemain.
+        #
+        # stations_cache.json est commité lui aussi : l'open data Smovengo est la
+        # seule source publiant les identifiants internes de station, et sa
+        # disponibilité est irrégulière. Le rafraîchir à chaque exécution réussie
+        # constitue un référentiel de secours toujours à jour dans le dépôt.
+        if: always()
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore: mise à jour de l'état et du référentiel [skip ci]"
+          file_pattern: |
+            processed_trips.json
+            stations_cache.json
+          commit_user_name: github-actions[bot]
+          commit_user_email: 41898282+github-actions[bot]@users.noreply.github.com

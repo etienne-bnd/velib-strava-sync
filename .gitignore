@@ -1,0 +1,20 @@
+# Secrets — ne jamais commiter
+.env
+
+# Artefacts Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+
+# Fichiers temporaires générés par la synchronisation
+temp_trip.gpx
+*.gpx
+velib_history.json
+stations_cache.json
+
+.dev/
+
+# NB : processed_trips.json EST volontairement versionné.
+# C'est le fichier d'état que le workflow GitHub Actions commite à chaque
+# exécution pour se souvenir des trajets déjà envoyés sur Strava.
