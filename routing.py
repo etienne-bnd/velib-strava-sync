@@ -145,6 +145,12 @@ class StationCatalog:
     SOURCE_SMOVENGO = "smovengo"
     SOURCE_PARIS_OPENDATA = "paris_opendata"
 
+    #: Complétude relative des sources. Elle ordonne deux décisions : quel repli
+    #: choisir quand Smovengo est injoignable, et quelle écriture de cache
+    #: refuser. Smovengo domine parce qu'il est le SEUL à publier les
+    #: identifiants internes de station, ceux que l'API privée Vélib' emploie.
+    SOURCE_RANK = {SOURCE_SMOVENGO: 2, SOURCE_PARIS_OPENDATA: 1}
+
     def __init__(
         self,
         stations: dict[str, Station],
@@ -286,17 +292,26 @@ class StationCatalog:
         """
         cache = Path(cache_path) if cache_path else None
 
+        # Le cache est lu une seule fois et conservé : il sert deux fois dans la
+        # cascade de replis ci-dessous, et le relire coûterait un second
+        # décodage de plusieurs centaines de kilo-octets.
+        cached_payload: dict[str, Any] | None = None
+
         if cache and cache.is_file():
             age = time.time() - cache.stat().st_mtime
-            if age < max_cache_age_seconds:
+            try:
+                cached_payload = json.loads(cache.read_text(encoding="utf-8"))
+            except (OSError, ValueError) as exc:
+                logger.warning("Cache de stations illisible (%s), re-téléchargement.", exc)
+
+            if cached_payload is not None and age < max_cache_age_seconds:
                 try:
-                    payload = json.loads(cache.read_text(encoding="utf-8"))
-                    catalog = cls.from_cached_payload(payload)
+                    catalog = cls.from_cached_payload(cached_payload)
                     logger.info("Catalogue chargé depuis le cache (%d stations).", len(catalog))
                     return catalog
-                except (OSError, ValueError, RoutingError) as exc:
-                    logger.warning("Cache de stations illisible (%s), re-téléchargement.", exc)
-            else:
+                except RoutingError as exc:
+                    logger.warning("Cache de stations inexploitable (%s), re-téléchargement.", exc)
+            elif cached_payload is not None:
                 logger.info(
                     "Cache de stations périmé (%.1f jour(s)) : tentative de "
                     "rafraîchissement.", age / 86_400,
@@ -312,10 +327,43 @@ class StationCatalog:
             cls._write_cache(cache, payload)
             return catalog
         except (requests.RequestException, ValueError, RoutingError) as exc:
-            logger.warning("Open data Smovengo indisponible (%s), essai du miroir.", exc)
+            logger.warning(
+                "Open data Smovengo indisponible (%s), recherche d'un repli.", exc
+            )
             primary_error = exc
 
-        # Source de secours : le miroir Paris Open Data, au format Explore v2.1.
+        # Premier repli : un cache Smovengo PÉRIMÉ, avant le miroir.
+        #
+        # L'ordre importe et il est contre-intuitif : on préfère ici des données
+        # vieilles de plusieurs jours à des données fraîches. C'est que les deux
+        # sources ne sont pas interchangeables. L'API privée Vélib' désigne ses
+        # stations par identifiant interne, que seul Smovengo publie ; le miroir
+        # n'expose que le code à cinq chiffres. Or les coordonnées d'une station
+        # ne bougent pratiquement jamais : la péremption ne coûte que les
+        # stations créées depuis, tandis que le miroir coûte la résolution de
+        # TOUS les trajets. Un cache périmé qui résout les trajets vaut donc
+        # mieux qu'un catalogue frais qui n'en résout aucun.
+        if cached_payload is not None and (
+            cls._payload_source(cached_payload) == cls.SOURCE_SMOVENGO
+        ):
+            try:
+                catalog = cls.from_cached_payload(cached_payload)
+            except RoutingError as exc:
+                logger.warning("Cache Smovengo périmé inexploitable (%s).", exc)
+            else:
+                catalog.is_stale = True
+                logger.warning(
+                    "Smovengo injoignable : repli sur le cache Smovengo périmé "
+                    "(%d stations). Il résout les identifiants internes, ce que "
+                    "le miroir Paris Open Data ne sait pas faire. Les stations "
+                    "créées depuis sa constitution resteront introuvables ; les "
+                    "trajets concernés seront reportés, pas perdus.",
+                    len(catalog),
+                )
+                return catalog
+
+        # Second repli : le miroir Paris Open Data, au format Explore v2.1. Il
+        # n'est atteint qu'en l'absence de tout cache Smovengo exploitable.
         try:
             records = _fetch_paris_opendata_records()
             catalog = cls.from_paris_opendata(records)
@@ -331,22 +379,22 @@ class StationCatalog:
         except (requests.RequestException, ValueError, RoutingError) as exc:
             logger.warning("Miroir Paris Open Data indisponible (%s).", exc)
 
-        # Dernier recours : un cache périmé vaut mieux qu'un échec total, les
-        # coordonnées des stations ne bougeant quasiment jamais.
-        if cache and cache.is_file():
+        # Dernier recours : un cache périmé vaut mieux qu'un échec total. Après
+        # le repli ci-dessus, il ne peut plus s'agir que d'un cache issu du
+        # miroir — les trajets désignés par identifiant interne y resteront
+        # introuvables, mais ceux désignés par code à cinq chiffres passeront.
+        if cached_payload is not None:
             logger.warning(
                 "Toutes les sources en ligne sont indisponibles : repli sur le "
-                "cache de stations périmé. Les stations créées depuis sa "
-                "constitution seront introuvables ; les trajets concernés "
-                "seront reportés, pas perdus."
+                "cache de stations périmé (source %s). Les trajets dont la "
+                "station est introuvable seront reportés, pas perdus.",
+                cls._payload_source(cached_payload),
             )
             try:
-                catalog = cls.from_cached_payload(
-                    json.loads(cache.read_text(encoding="utf-8"))
-                )
+                catalog = cls.from_cached_payload(cached_payload)
                 catalog.is_stale = True
                 return catalog
-            except (OSError, ValueError, RoutingError):
+            except RoutingError:
                 pass
 
         raise RoutingError(
@@ -361,11 +409,67 @@ class StationCatalog:
             return cls.from_paris_opendata(payload["paris_opendata_records"])
         return cls.from_payload(payload)
 
-    @staticmethod
-    def _write_cache(cache: Path | None, payload: dict[str, Any]) -> None:
-        """Écrit le cache disque, sans faire échouer l'exécution en cas de refus."""
+    @classmethod
+    def _payload_source(cls, payload: dict[str, Any]) -> str:
+        """Déduit la source d'une charge utile de cache à sa structure.
+
+        Le cache ne porte pas d'étiquette de provenance : la forme suffit à la
+        déterminer, le miroir étant stocké sous une clé qui lui est propre.
+
+        Args:
+            payload: Contenu déjà désérialisé du cache.
+
+        Returns:
+            `SOURCE_PARIS_OPENDATA` ou `SOURCE_SMOVENGO`.
+        """
+        if "paris_opendata_records" in payload:
+            return cls.SOURCE_PARIS_OPENDATA
+        return cls.SOURCE_SMOVENGO
+
+    @classmethod
+    def _write_cache(cls, cache: Path | None, payload: dict[str, Any]) -> None:
+        """Écrit le cache disque, sauf si cela dégraderait son contenu.
+
+        Un cache Smovengo ne doit JAMAIS être remplacé par des données du
+        miroir. Le cache est le référentiel de secours du projet — il est
+        versionné dans le dépôt précisément parce que Smovengo est
+        régulièrement injoignable — et seul Smovengo publie les identifiants
+        internes de station. L'écraser par un jeu de données qui n'expose que
+        les codes à cinq chiffres détruit la seule copie exploitable, et le
+        workflow, qui commite ce fichier avec `if: always()`, rendrait la perte
+        définitive.
+
+        Constaté en conditions réelles le 9 septembre 2026 : une exécution
+        pendant une panne Smovengo a remplacé 1471 stations avec identifiants
+        internes par 1519 entrées sans, rendant tout trajet non géolocalisable.
+
+        Args:
+            cache: Fichier de cache, ou None pour ne rien écrire.
+            payload: Charge utile à enregistrer.
+        """
         if cache is None:
             return
+
+        nouvelle_source = cls._payload_source(payload)
+        if cache.is_file():
+            try:
+                existante = cls._payload_source(
+                    json.loads(cache.read_text(encoding="utf-8"))
+                )
+            except (OSError, ValueError):
+                # Cache absent ou corrompu : rien à préserver, on écrit.
+                existante = None
+            if existante is not None and cls.SOURCE_RANK.get(
+                nouvelle_source, 0
+            ) < cls.SOURCE_RANK.get(existante, 0):
+                logger.warning(
+                    "Cache de stations NON réécrit : le conserver (source %s) "
+                    "vaut mieux que le remplacer par des données %s, moins "
+                    "complètes. Seul Smovengo publie les identifiants internes "
+                    "de station.", existante, nouvelle_source,
+                )
+                return
+
         try:
             cache.parent.mkdir(parents=True, exist_ok=True)
             cache.write_text(json.dumps(payload), encoding="utf-8")

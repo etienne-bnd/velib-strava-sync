@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import os
 
 import pytest
 import responses
@@ -127,7 +128,6 @@ def test_repli_sur_le_cache_perime(station_payload, tmp_path) -> None:
     """Les deux sources en panne : un cache périmé sauve l'exécution."""
     cache = tmp_path / "cache.json"
     cache.write_text(json.dumps(station_payload), encoding="utf-8")
-    import os, time as _time
     os.utime(cache, (0, 0))  # rend le cache très périmé
 
     responses.add(responses.GET, routing.STATION_INFORMATION_URL, status=503)
@@ -135,6 +135,131 @@ def test_repli_sur_le_cache_perime(station_payload, tmp_path) -> None:
 
     catalog = StationCatalog.load(cache_path=cache)
     assert catalog.require("16107") is not None
+
+
+@responses.activate
+def test_cache_smovengo_perime_prefere_au_miroir_frais(station_payload, tmp_path) -> None:
+    """Un cache Smovengo périmé DOIT primer sur un miroir frais et disponible.
+
+    L'ordre est contre-intuitif — on préfère des données vieilles à des données
+    fraîches — et c'est pourtant le bon : l'API privée Vélib' désigne ses
+    stations par identifiant interne, que seul Smovengo publie. Le miroir
+    n'expose que le code à cinq chiffres, donc un catalogue construit depuis lui
+    ne résout AUCUN trajet réel, tout frais qu'il soit. Les coordonnées d'une
+    station ne bougeant pratiquement jamais, la péremption ne coûte presque
+    rien.
+
+    Constaté en réel le 9 septembre 2026 : avec l'ordre inverse, une panne
+    Smovengo rendait les 117 trajets à rattraper tous non géolocalisables.
+    """
+    cache = tmp_path / "cache.json"
+    cache.write_text(json.dumps(station_payload), encoding="utf-8")
+    os.utime(cache, (0, 0))  # très périmé
+
+    responses.add(responses.GET, routing.STATION_INFORMATION_URL, status=503)
+    responses.add(
+        responses.GET, routing.PARIS_OPENDATA_URL, status=200,
+        json={"total_count": 1, "results": [
+            {"stationcode": "16107", "name": "Depuis le miroir",
+             "coordonnees_geo": {"lon": 2.275725, "lat": 48.865983}},
+        ]},
+    )
+
+    catalog = StationCatalog.load(cache_path=cache)
+
+    # L'identifiant interne : le test décisif, le miroir ne le connaît pas.
+    assert catalog.require("213688169").name == "Benjamin Godard - Victor Hugo"
+    assert catalog.resolves_internal_ids
+    # Périmé, donc non autoritaire : une station absente ne prouve pas sa
+    # suppression, et main.py doit reporter le trajet plutôt que l'écarter.
+    assert catalog.is_stale
+    assert not catalog.is_authoritative
+    # Le miroir n'a même pas été interrogé.
+    assert not any(routing.PARIS_OPENDATA_URL in call.request.url
+                   for call in responses.calls)
+
+
+@responses.activate
+def test_le_miroir_ne_doit_jamais_ecraser_un_cache_smovengo(
+    station_payload, tmp_path
+) -> None:
+    """Le cache est le référentiel de secours du projet : ne pas le dégrader.
+
+    Il est versionné dans le dépôt précisément parce que Smovengo est
+    régulièrement injoignable, et le workflow le commite avec `if: always()`.
+    Le remplacer par des données du miroir — qui n'expose pas les identifiants
+    internes — détruirait donc définitivement la seule copie exploitable.
+
+    Mesuré en réel le 9 septembre 2026 : 1471 stations avec identifiants
+    internes remplacées par 1519 entrées sans, plus aucun trajet géolocalisable.
+    """
+    cache = tmp_path / "cache.json"
+    cache.write_text(json.dumps(station_payload), encoding="utf-8")
+
+    StationCatalog._write_cache(cache, {"paris_opendata_records": [{"stationcode": "16107"}]})
+
+    conserve = json.loads(cache.read_text(encoding="utf-8"))
+    assert "paris_opendata_records" not in conserve
+    assert conserve["data"]["stations"][0]["station_id"] == 213688169
+
+
+def test_un_cache_smovengo_est_bien_rafraichi(station_payload, tmp_path) -> None:
+    """Le garde-fou ne doit pas bloquer une mise à jour de même rang."""
+    cache = tmp_path / "cache.json"
+    cache.write_text(json.dumps(station_payload), encoding="utf-8")
+
+    frais = {"data": {"stations": [
+        {"station_id": 999, "stationCode": "99999", "name": "Nouvelle",
+         "lat": 48.86, "lon": 2.35},
+    ]}}
+    StationCatalog._write_cache(cache, frais)
+
+    assert json.loads(cache.read_text(encoding="utf-8")) == frais
+
+
+def test_un_cache_corrompu_n_empeche_pas_l_ecriture(tmp_path) -> None:
+    """Rien à préserver dans un cache illisible : l'écriture doit passer."""
+    cache = tmp_path / "cache.json"
+    cache.write_text("{ ceci n'est pas du JSON", encoding="utf-8")
+
+    charge = {"paris_opendata_records": [{"stationcode": "16107"}]}
+    StationCatalog._write_cache(cache, charge)
+
+    assert json.loads(cache.read_text(encoding="utf-8")) == charge
+
+
+def test_le_miroir_peut_amorcer_un_cache_absent(tmp_path) -> None:
+    """Sans cache préexistant, le miroir vaut mieux que rien : il s'écrit."""
+    cache = tmp_path / "cache.json"
+    charge = {"paris_opendata_records": [{"stationcode": "16107"}]}
+    StationCatalog._write_cache(cache, charge)
+    assert json.loads(cache.read_text(encoding="utf-8")) == charge
+
+
+@responses.activate
+def test_un_cache_miroir_perime_reste_un_dernier_recours(tmp_path) -> None:
+    """Toutes les sources en panne et un cache issu du miroir : il sert encore.
+
+    Il ne résoudra pas les identifiants internes, mais les trajets désignés par
+    code à cinq chiffres passeront — mieux qu'un échec total.
+    """
+    cache = tmp_path / "cache.json"
+    cache.write_text(
+        json.dumps({"paris_opendata_records": [
+            {"stationcode": "16107", "name": "Benjamin Godard",
+             "coordonnees_geo": {"lon": 2.275725, "lat": 48.865983}},
+        ]}),
+        encoding="utf-8",
+    )
+    os.utime(cache, (0, 0))
+
+    responses.add(responses.GET, routing.STATION_INFORMATION_URL, status=503)
+    responses.add(responses.GET, routing.PARIS_OPENDATA_URL, status=503)
+
+    catalog = StationCatalog.load(cache_path=cache)
+    assert catalog.require("16107") is not None
+    assert not catalog.resolves_internal_ids
+    assert catalog.is_stale
 
 
 @responses.activate
