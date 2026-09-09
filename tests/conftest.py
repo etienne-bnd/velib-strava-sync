@@ -16,6 +16,24 @@ if str(PROJECT_ROOT) not in sys.path:
 from models import Station, VelibTrip  # noqa: E402
 
 
+@pytest.fixture(autouse=True)
+def _moteur_http_requests(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Force le moteur `requests` pendant toute la suite.
+
+    La bibliothèque `responses` intercepte les adaptateurs de `requests` et
+    ceux-là seuls : elle ne voit rien de ce que `curl_cffi` émet, puisque celui-ci
+    passe par libcurl. Or `http_client` choisit `curl_cffi` dès qu'il est
+    installé — ce qui est le cas depuis qu'il figure dans requirements.txt.
+    Sans ce verrou, les tests de parcours HTTP tenteraient de vrais appels
+    réseau vers velib-metropole.fr.
+
+    Le choix du moteur lui-même est testé dans `test_http_client.py`, qui lève
+    ce verrou explicitement.
+    """
+    monkeypatch.setenv("VELIB_HTTP_BACKEND", "requests")
+    monkeypatch.delenv("VELIB_HTTP_DEBUG", raising=False)
+
+
 @pytest.fixture
 def trip() -> VelibTrip:
     """Un trajet Vélib' nominal : Benjamin Godard -> Tour Eiffel, 15 min."""

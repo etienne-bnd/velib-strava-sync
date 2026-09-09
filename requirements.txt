@@ -1,5 +1,19 @@
 # Dépendances d'exécution
 requests==2.32.5
+
+# curl-impersonate empaqueté pour Python. Reproduit l'empreinte TLS (ordre des
+# ciphers, extensions, courbes — donc JA3/JA4) et HTTP/2 (trame SETTINGS, ordre
+# des pseudo-en-têtes) d'un Chrome réel. Cloudflare additionne la réputation de
+# l'IP appelante et cette empreinte pour calculer un Threat Score : une IP de
+# runner GitHub Actions (plage Azure, mal notée) PLUS une empreinte OpenSSL/
+# urllib3 franchit le seuil de blocage, la même IP avec une empreinte Chrome
+# reste souvent en dessous.
+#
+# La roue manylinux (cp310-abi3) embarque le libcurl patché : aucun paquet
+# système, aucun conteneur Docker et aucune compilation ne sont nécessaires sur
+# un runner ubuntu-latest.
+curl_cffi==0.16.3
+
 # Indispensable : velib-metropole.fr sert ses pages en Brotli. Sans ce paquet,
 # requests renvoie des octets compressés et l'extraction du CSRF échoue.
 Brotli==1.1.0

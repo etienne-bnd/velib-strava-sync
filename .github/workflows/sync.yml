@@ -14,6 +14,19 @@ on:
         description: "Nombre maximum de trajets traités"
         type: string
         default: "25"
+      http_backend:
+        description: "Moteur HTTP : curl (empreinte Chrome) ou requests (pile Python)"
+        type: choice
+        options: ["curl", "requests", "auto"]
+        default: "curl"
+      impersonate:
+        description: "Navigateur imité par curl-impersonate (chrome, chrome131, firefox, safari)"
+        type: string
+        default: "chrome"
+      debug_http:
+        description: "Vider en-têtes et corps de TOUTES les réponses HTTP, pas seulement des échecs"
+        type: boolean
+        default: false
 
 # Nécessaire pour que l'étape de commit automatique puisse pousser sur le dépôt.
 permissions:
@@ -42,9 +55,31 @@ jobs:
           cache: pip
 
       - name: Installer les dépendances
+        # curl_cffi est distribué en roue manylinux « cp310-abi3 » qui embarque
+        # le libcurl patché de curl-impersonate : rien à compiler, aucun paquet
+        # système à installer, aucun conteneur Docker à faire tourner. C'est ce
+        # qui rend le contournement possible sur un runner hébergé standard.
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+
+      - name: Vérifier le moteur HTTP
+        # Garde-fou avant toute requête vers Vélib' : `resolve_backend` lève si
+        # le moteur exigé n'est pas installable, ce qui fait échouer cette étape
+        # avec un message clair. Sans elle, une roue manquante se manifesterait
+        # quinze lignes plus bas sous la forme d'un HTTP 403 — le symptôme même
+        # qu'on cherche à éliminer, attribué à la mauvaise cause.
+        env:
+          VELIB_HTTP_BACKEND: ${{ github.event.inputs.http_backend || 'curl' }}
+          VELIB_IMPERSONATE: ${{ github.event.inputs.impersonate || 'chrome' }}
+        run: |
+          python -c "
+          import os, http_client
+          print('curl_cffi          :', http_client.curl_version() or 'ABSENT')
+          print('moteur exigé       :', os.environ['VELIB_HTTP_BACKEND'])
+          print('moteur retenu      :', http_client.resolve_backend())
+          print('empreinte demandée :', http_client.impersonate_target())
+          "
 
       - name: Lancer la synchronisation
         env:
@@ -57,7 +92,36 @@ jobs:
           PROJECT_REPO_URL: ${{ github.server_url }}/${{ github.repository }}
           MAX_TRIPS_PER_RUN: ${{ github.event.inputs.max_trips || '25' }}
           DRY_RUN: ${{ github.event.inputs.dry_run == 'true' && '1' || '0' }}
+
+          # `curl` est exigé, pas seulement préféré : avec la valeur « curl »,
+          # l'absence de curl_cffi fait échouer le script immédiatement et avec
+          # un message clair. Un repli silencieux sur `requests` redonnerait le
+          # HTTP 403 sans en expliquer la cause.
+          VELIB_HTTP_BACKEND: ${{ github.event.inputs.http_backend || 'curl' }}
+          VELIB_IMPERSONATE: ${{ github.event.inputs.impersonate || 'chrome' }}
+
+          # Sur échec, `velib.py` vide de lui-même en-têtes et corps de la
+          # réponse fautive. Cette variable étend le vidage à TOUTES les
+          # réponses, y compris réussies : utile pour comparer ligne à ligne une
+          # exécution locale qui marche et une exécution CI qui échoue.
+          VELIB_HTTP_DEBUG: ${{ github.event.inputs.debug_http == 'true' && '1' || '0' }}
         run: python main.py
+
+      - name: Diagnostiquer le pare-feu Cloudflare
+        # Ne tourne qu'en cas d'échec de l'étape précédente. La sonde n'utilise
+        # AUCUN identifiant — elle s'arrête à la page publique /login — et
+        # compare les deux moteurs HTTP depuis cette même IP de runner :
+        #
+        #   curl passe, requests non  -> l'empreinte TLS était le signal bloquant
+        #   les deux échouent         -> c'est l'IP ou une règle WAF (voir le code
+        #                                d'erreur 1020/1015 dans le vidage)
+        #
+        # `continue-on-error` : la sonde documente l'échec, elle ne le juge pas.
+        if: failure()
+        continue-on-error: true
+        env:
+          VELIB_IMPERSONATE: ${{ github.event.inputs.impersonate || 'chrome' }}
+        run: python probe_cloudflare.py
 
       - name: Commiter l'état et le référentiel des stations
         # `always()` : même si la synchronisation s'est terminée en erreur, les

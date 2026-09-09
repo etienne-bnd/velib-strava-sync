@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 import pytest
 import responses
 
+import http_client
 import velib
 
 
@@ -342,10 +343,12 @@ def test_trajets_tries_du_plus_ancien_au_plus_recent(monkeypatch) -> None:
 
 @responses.activate
 def test_blocage_par_ip_detecte() -> None:
-    """La page « Site not reachable » est un refus par IP, pas un challenge JS.
+    """La page de blocage cite les deux signaux du Threat Score.
 
-    Le message doit orienter vers un runner auto-hébergé : aucun réessai ni
-    changement d'en-tête ne débloquera la situation.
+    Cloudflare additionne la réputation de l'IP appelante et l'empreinte
+    TLS/HTTP du client. On ne peut rien à la première sur un runner hébergé, et
+    tout à la seconde : le message doit donc nommer les deux et proposer la
+    parade praticable.
     """
     responses.add(
         responses.GET, velib.LOGIN_URL,
@@ -361,6 +364,107 @@ def test_403_sans_marqueur_evoque_brotli() -> None:
     responses.add(responses.GET, velib.LOGIN_URL, body="\x1f\x8b\x08 binaire", status=403)
     with pytest.raises(velib.CloudflareChallenge, match="Brotli"):
         velib._request(velib.build_session(), "GET", velib.LOGIN_URL)
+
+
+@responses.activate
+def test_un_403_est_vide_integralement_dans_les_journaux(caplog) -> None:
+    """Un blocage doit être diagnosticable à la seule lecture des journaux.
+
+    C'est toute la raison d'être du vidage : le HTTP 403 ne se produit que sur
+    le runner, où l'on ne peut ni rejouer la requête ni attacher un débogueur.
+    En-têtes complets, code d'erreur WAF et corps brut doivent donc apparaître.
+    """
+    responses.add(
+        responses.GET, velib.LOGIN_URL, status=403,
+        body='<html><span class="cf-error-code">1020</span>'
+             "<h1>Sorry, you have been blocked</h1></html>",
+        headers={"Server": "cloudflare", "Cf-Ray": "9f00ba12cd34ef56-CDG"},
+    )
+    with caplog.at_level("ERROR"):
+        with pytest.raises(velib.CloudflareChallenge) as echec:
+            velib._request(velib.build_session(), "GET", velib.LOGIN_URL)
+
+    assert "DIAGNOSTIC HTTP" in caplog.text
+    assert "server: cloudflare" in caplog.text.lower()
+    assert "9f00ba12cd34ef56-CDG" in caplog.text
+    assert "Sorry, you have been blocked" in caplog.text
+    # Le code WAF remonte aussi dans le message d'exception : c'est lui qui
+    # apparaît dans le résumé d'échec du workflow, pas le corps de la page.
+    assert "1020" in str(echec.value)
+
+
+@responses.activate
+def test_limitation_de_debit_reconnue_et_distinguee(caplog) -> None:
+    """Un HTTP 429 est une limitation de débit, pas un problème d'empreinte.
+
+    Mesuré en conditions réelles le 8 septembre 2026 : `/login` renvoie 429
+    avec `Retry-After: 86145` et la MÊME page « Site not reachable » qu'un 403.
+    Seul le code HTTP les distingue, et la parade est opposée — attendre, plutôt
+    que changer d'empreinte ou de runner. Sans ce cas, le 429 passait pour une
+    réponse normale : il est inférieur à 500, donc `_request` le retournait tel
+    quel.
+    """
+    responses.add(
+        responses.GET, velib.LOGIN_URL, status=429,
+        body="<html><title>Site not reachable</title></html>",
+        headers={"Server": "cloudflare", "Retry-After": "86145"},
+    )
+    with caplog.at_level("ERROR"):
+        with pytest.raises(velib.CloudflareChallenge) as echec:
+            velib._request(velib.build_session(), "GET", velib.LOGIN_URL)
+
+    message = str(echec.value)
+    assert "429" in message
+    assert "23,9 h" in message  # virgule décimale : message lu par un humain
+    assert "PAS un" in message  # ne pas envoyer le lecteur sur une fausse piste
+    assert "DIAGNOSTIC HTTP" in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("entete", "attendu"),
+    [
+        ("86145", "23,9 h"),
+        ("120", "120 s"),
+        ("Wed, 09 Sep 2026 00:00:00 GMT", "Wed, 09 Sep 2026"),
+        (None, ""),
+    ],
+)
+def test_mise_en_mots_du_retry_after(entete, attendu) -> None:
+    """`Retry-After` est traduit en durée lisible, y compris sous forme de date."""
+    assert attendu in velib._format_retry_after(entete)
+
+
+@responses.activate
+def test_le_conseil_depend_du_moteur_employe(monkeypatch) -> None:
+    """Sous `requests`, le message doit orienter vers curl-impersonate.
+
+    Sans cette indication, le lecteur des journaux constate un 403 sans savoir
+    quel levier actionner.
+    """
+    monkeypatch.setattr(http_client, "_curl_module", lambda: object())
+    responses.add(
+        responses.GET, velib.LOGIN_URL, status=403,
+        body="<html>Sorry, you have been blocked</html>",
+        headers={"Server": "cloudflare"},
+    )
+    with pytest.raises(velib.CloudflareChallenge, match="VELIB_HTTP_BACKEND=curl"):
+        velib._request(velib.build_session("requests"), "GET", velib.LOGIN_URL)
+
+
+@responses.activate
+def test_debogage_vide_meme_les_reponses_reussies(caplog, monkeypatch) -> None:
+    """`VELIB_HTTP_DEBUG=1` sert à comparer une exécution locale et une exécution CI.
+
+    Le vidage passe alors en INFO : il devient un journal d'audit, non plus un
+    rapport d'échec.
+    """
+    monkeypatch.setenv("VELIB_HTTP_DEBUG", "1")
+    responses.add(responses.GET, velib.LOGIN_URL, body="<html>ok</html>", status=200,
+                  headers={"Server": "cloudflare"})
+    with caplog.at_level("INFO"):
+        velib._request(velib.build_session(), "GET", velib.LOGIN_URL)
+    assert "DIAGNOSTIC HTTP" in caplog.text
+    assert "HTTP 200" in caplog.text
 
 
 # --------------------------------------------------------------------------- #

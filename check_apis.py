@@ -29,6 +29,7 @@ import gpx_builder
 import main as orchestrateur
 import routing
 import strava
+import http_client
 import velib
 
 logger = logging.getLogger("diagnostic")
@@ -215,14 +216,23 @@ def verifier_velib(reglages: config.Config) -> bool:
     """
     titre("4. API privée Vélib' Métropole")
 
+    # Le moteur HTTP conditionne le résultat de cette vérification : c'est
+    # l'information à donner en premier si elle échoue.
+    if http_client.resolve_backend() == http_client.BACKEND_CURL:
+        print(f"  ·  Moteur HTTP : curl_cffi {http_client.curl_version()}, "
+              f"empreinte imitée « {http_client.impersonate_target()} »")
+    else:
+        print("  ·  Moteur HTTP : requests (aucune imitation d'empreinte TLS)")
+
     try:
         trajets = velib.get_new_velib_trips(
             reglages.velib_username, reglages.velib_password
         )
     except velib.CloudflareChallenge as exc:
         print(f"  {KO} Blocage anti-bot : {exc}")
-        print("      Attendu depuis une IP de centre de données ; à retester")
-        print("      depuis une connexion résidentielle ou un runner auto-hébergé.")
+        print("      Les en-têtes et le corps complets de la réponse refusée sont")
+        print("      journalisés ci-dessus. Pour comparer les deux moteurs HTTP")
+        print("      depuis cette machine : python probe_cloudflare.py")
         return False
     except velib.VelibError as exc:
         print(f"  {KO} {exc}")

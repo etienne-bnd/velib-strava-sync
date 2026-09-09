@@ -4,6 +4,11 @@ Synchronise automatiquement l'historique de trajets [Vélib' Métropole](https:/
 vers [Strava](https://www.strava.com) : chaque trajet est reconstitué en un
 itinéraire cyclable réaliste, horodaté, puis envoyé comme activité.
 
+Le transport HTTP vers Vélib' passe par `curl-impersonate` afin de présenter
+l'empreinte TLS et HTTP/2 d'un Chrome réel — sans quoi Cloudflare refuse les
+requêtes émises depuis un runner GitHub Actions. Voir
+[Franchir Cloudflare](#franchir-cloudflare).
+
 ## Fonctionnement
 
 ```
@@ -60,12 +65,13 @@ python check_apis.py         # vérifie que les quatre API répondent
 python main.py --dry-run     # construit les GPX sans rien envoyer
 python main.py               # synchronisation réelle
 python main.py -v --max-trips 1   # premier envoi prudent, en mode bavard
+python probe_cloudflare.py   # diagnostique le pare-feu, sans identifiants
 ```
 
 ## Tests
 
 ```bash
-pytest                       # 196 tests, aucun appel réseau réel
+pytest                       # 234 tests, aucun appel réseau réel
 ```
 
 ## Déploiement
@@ -77,11 +83,75 @@ Renseigner les six secrets dans **Settings → Secrets and variables → Actions
 `VELIB_USERNAME`, `VELIB_PASSWORD`, `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`,
 `STRAVA_REFRESH_TOKEN`, `ORS_API_KEY`.
 
-> **Point d'attention.** Cloudflare Bot Management protège `velib-metropole.fr`.
-> Une requête vers `/login` dépourvue du cookie `__cf_bm` reçoit un HTTP 403.
-> `velib.py` visite donc l'accueil avant `/login` pour établir ce cookie — ne pas
-> supprimer cette étape. Si un blocage survient malgré tout, le script sort avec
-> le code 3 ; la parade est alors un *runner auto-hébergé*.
+## Franchir Cloudflare
+
+`velib-metropole.fr` est protégé par Cloudflare Bot Management, qui additionne
+plusieurs signaux en un *Threat Score*. Trois d'entre eux concernent ce projet.
+
+**1. Le cookie `__cf_bm`.** Une requête vers `/login` qui arrive sans ce cookie
+reçoit un HTTP 403. Un navigateur ne rencontre jamais ce cas : il atteint
+`/login` depuis une autre page du site, donc il l'a déjà. `velib.py` visite donc
+l'accueil avant `/login` — **ne pas supprimer cette étape**, un test la protège.
+
+**2. L'empreinte TLS et HTTP/2.** `requests` négocie le TLS via OpenSSL et parle
+HTTP/1.1 : l'ordre des ciphers, des extensions et des courbes suffit à
+l'identifier (JA3/JA4), et aucun navigateur n'ouvre plus une page en HTTP/1.1.
+Un jeu d'en-têtes réaliste n'y change rien — le signal est *sous* HTTP. C'est ce
+que corrige [`curl_cffi`](https://github.com/lexiforest/curl_cffi), qui embarque
+*curl-impersonate* et reproduit l'empreinte d'un Chrome réel. Mesuré depuis ce
+projet, sur `/cdn-cgi/trace` :
+
+| Moteur | `http=` | `uag=` |
+|---|---|---|
+| `requests` | `http/1.1` | Chrome 152 déclaré à la main |
+| `curl` | `http/2` | Chrome 150, natif et cohérent avec l'empreinte |
+
+**3. La réputation de l'IP.** Les runners GitHub Actions hébergés partagent des
+plages Azure médiocrement notées. On ne peut rien y faire — sinon un *runner
+auto-hébergé*. L'empreinte, elle, est entièrement sous notre contrôle, et c'est
+la somme des deux qui décide : une IP de centre de données **plus** une empreinte
+« Python » franchit le seuil de blocage ; la même IP avec une empreinte Chrome
+reste souvent en dessous.
+
+Le workflow pose donc `VELIB_HTTP_BACKEND=curl`, ce qui **exige** `curl_cffi` :
+en son absence l'exécution échoue immédiatement, avec un message explicite,
+plutôt que de retomber en silence sur `requests` et de rendre un HTTP 403
+inexplicable. Aucun conteneur Docker n'est nécessaire — la roue manylinux de
+`curl_cffi` embarque le libcurl patché.
+
+### Diagnostiquer un blocage
+
+Toute réponse inattendue est vidée dans les journaux : statut, **intégralité des
+en-têtes**, code d'erreur WAF (1020, 1015, 1010…), Ray ID, cookies acquis et
+**corps brut**. Les valeurs de cookies sont masquées et aucun corps de requête
+n'est journalisé — celui du POST `/login` contient le mot de passe.
+
+```bash
+VELIB_HTTP_DEBUG=1 python main.py -v     # vide AUSSI les réponses réussies
+python probe_cloudflare.py               # compare les deux moteurs, sans identifiants
+```
+
+`probe_cloudflare.py` n'envoie aucun identifiant : il s'arrête à la page publique
+`/login`. Il tourne automatiquement dans le workflow après un échec. Sa lecture :
+
+| Observation | Conclusion |
+|---|---|
+| `curl` passe, `requests` non | L'empreinte TLS était le signal bloquant |
+| Les deux échouent, code WAF 1020 | Règle de pare-feu (ASN, pays) : runner auto-hébergé |
+| Les deux échouent, code WAF 1015 ou HTTP 429 | Limitation de débit : attendre, espacer les exécutions |
+| `/cdn-cgi/trace` échoue lui aussi | Problème réseau, pas Cloudflare |
+
+Si un blocage persiste, le premier réglage à tenter est une autre cible
+d'imitation : `VELIB_IMPERSONATE=chrome131`, `firefox`, `safari`.
+
+### Variables d'environnement du transport
+
+| Variable | Défaut | Rôle |
+|---|---|---|
+| `VELIB_HTTP_BACKEND` | `auto` | `curl` (exige curl_cffi), `requests`, ou `auto` |
+| `VELIB_IMPERSONATE` | `chrome` | Navigateur imité |
+| `VELIB_HTTP_DEBUG` | `0` | Vide toutes les réponses, pas seulement les échecs |
+| `VELIB_HTTP_DUMP_BODY_CHARS` | `4000` | Longueur de corps journalisée |
 
 ## Codes de sortie
 
@@ -90,4 +160,4 @@ Renseigner les six secrets dans **Settings → Secrets and variables → Actions
 | 0 | Succès (y compris « aucun nouveau trajet ») |
 | 1 | Échec général |
 | 2 | Configuration invalide ou incomplète |
-| 3 | Blocage anti-bot sur velib-metropole.fr |
+| 3 | Blocage anti-bot sur velib-metropole.fr (403, 429 ou challenge) |

@@ -10,7 +10,13 @@ l'analyse d'un fichier HAR) :
   3. GET  /api/private/getCourseList  -> historique JSON, paginé
 
 L'authentification repose uniquement sur le cookie de session posé par le
-serveur ; `requests.Session` le gère automatiquement. Aucun jeton Bearer.
+serveur ; la session HTTP le gère automatiquement. Aucun jeton Bearer.
+
+Le transport est délégué à `http_client`, qui sait employer `curl_cffi`
+(curl-impersonate) plutôt que `requests` pour présenter l'empreinte TLS et
+HTTP/2 d'un Chrome réel — indispensable depuis un runner GitHub Actions, dont
+l'IP est déjà mal notée par Cloudflare. Toute réponse inattendue y est vidée en
+clair dans les journaux (en-têtes complets, code WAF, corps brut).
 """
 
 from __future__ import annotations
@@ -22,8 +28,8 @@ import time
 from datetime import datetime, timezone
 from typing import Any, Iterable
 
-import requests
-
+import http_client
+from http_client import HttpSession
 from models import VelibTrip
 
 logger = logging.getLogger(__name__)
@@ -33,21 +39,11 @@ LOGIN_URL = f"{BASE_URL}/login"
 ACCOUNT_URL = f"{BASE_URL}/private/account"
 COURSE_LIST_URL = f"{BASE_URL}/api/private/getCourseList"
 
-# En-têtes calqués sur ceux observés dans le HAR. Le User-Agent doit rester
-# cohérent et récent : Cloudflare pénalise les UA par défaut de type
-# « python-requests/2.x ».
-BROWSER_HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-        "(KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36"
-    ),
-    "Accept-Language": "fr-FR,fr;q=0.9,en;q=0.8",
-    "Accept-Encoding": "gzip, deflate, br",
-    "Upgrade-Insecure-Requests": "1",
-    "Sec-Ch-Ua": '"Chromium";v="152", "Not?A_Brand";v="24"',
-    "Sec-Ch-Ua-Mobile": "?0",
-    "Sec-Ch-Ua-Platform": '"Windows"',
-}
+# La politique d'en-têtes dépend du moteur HTTP — `curl_cffi` pose déjà les
+# siens, conformes au Chrome imité, et les écraser serait contre-productif.
+# Elle vit donc dans `http_client` ; l'alias est conservé pour les appelants
+# qui l'importaient depuis ici.
+BROWSER_HEADERS = http_client.BROWSER_HEADERS
 
 PAGE_SIZE = 50           # le site utilise 10, l'API accepte davantage
 REQUEST_TIMEOUT = 30     # secondes
@@ -105,67 +101,188 @@ class CloudflareChallenge(VelibError):
 # Utilitaires bas niveau
 # --------------------------------------------------------------------------- #
 
-# Deux familles de blocage sont rencontrées : le challenge JavaScript, et le
-# refus sec par réputation d'IP (« Site not reachable »), qu'aucun réessai ne
-# lèvera. Les deux se présentent en HTTP 403.
+# Trois familles de blocage sont rencontrées, et elles ne portent pas le même
+# code HTTP :
+#
+#   403 — refus sec du WAF (règle de pare-feu, empreinte ou IP refusée).
+#   429 — limitation de débit. Observé en conditions réelles sur `/login`, avec
+#         un en-tête `Retry-After: 86145` (près de 24 h) et la même page
+#         « Site not reachable » que le 403 : seul le code HTTP les distingue.
+#   503 — challenge interposé.
+#
+# Toutes trois servent la page « Site not reachable » de Vélib', ce qui rend le
+# corps seul insuffisant pour trancher. D'où la lecture conjointe du code, des
+# en-têtes et du corps.
+BLOCK_STATUSES = (403, 429, 503)
+
 CHALLENGE_MARKERS = ("just a moment", "cf-chl", "challenge-platform", "cf_chl_opt")
 IP_BLOCK_MARKERS = ("site not reachable", "access denied", "sorry, you have been blocked")
 
 
-def _detect_cloudflare_block(response: requests.Response) -> None:
+def _format_retry_after(valeur: str | None) -> str:
+    """Met en mots un en-tête `Retry-After` exprimé en secondes.
+
+    « 86145 » ne dit rien au lecteur ; « environ 23,9 h » dit immédiatement
+    qu'il ne s'agit pas d'un hoquet passager mais d'une fenêtre de limitation
+    longue, qu'aucun réessai dans la même exécution ne franchira.
+
+    Args:
+        valeur: Contenu brut de l'en-tête, ou None s'il est absent.
+
+    Returns:
+        Une phrase prête à être insérée dans un message d'erreur, ou une chaîne
+        vide si l'en-tête est absent ou non numérique.
+    """
+    if not valeur:
+        return ""
+    try:
+        secondes = int(valeur.strip())
+    except ValueError:
+        return f" Le serveur demande d'attendre jusqu'à « {valeur} »."
+    if secondes >= 3600:
+        # Virgule décimale : le message est lu par un humain francophone.
+        heures = f"{secondes / 3600:.1f}".replace(".", ",")
+        return f" Le serveur demande d'attendre {secondes} s, soit environ {heures} h."
+    return f" Le serveur demande d'attendre {secondes} s."
+
+
+def _conseil_selon_moteur(session: HttpSession | None) -> str:
+    """Formule la parade à tenter, selon le moteur HTTP en service.
+
+    Un blocage sous `requests` et un blocage sous `curl` n'appellent pas la même
+    action : dans le premier cas l'empreinte TLS reste à corriger, dans le
+    second elle l'est déjà et il ne reste que l'adresse IP.
+
+    Args:
+        session: Session émettrice de la requête refusée.
+
+    Returns:
+        Une phrase de conseil, destinée au message d'exception.
+    """
+    backend = getattr(session, "velib_backend", None)
+
+    if backend == http_client.BACKEND_CURL:
+        return (
+            "L'empreinte TLS/HTTP2 est déjà celle d'un Chrome réel "
+            f"(curl-impersonate, cible « {getattr(session, 'velib_impersonate', '?')} ») : "
+            "le signal restant est l'adresse IP du runner. Essayer une autre "
+            "cible via VELIB_IMPERSONATE (chrome, chrome131, firefox, safari), "
+            "puis, si le blocage persiste, un runner auto-hébergé."
+        )
+
+    if http_client.curl_available():
+        return (
+            "Le moteur en service est `requests`, dont l'empreinte TLS est "
+            "immédiatement reconnaissable. curl_cffi est installé : poser "
+            "VELIB_HTTP_BACKEND=curl pour imiter l'empreinte de Chrome."
+        )
+
+    return (
+        "Le moteur en service est `requests`, dont l'empreinte TLS est "
+        "immédiatement reconnaissable. Installer curl_cffi "
+        "(« pip install curl_cffi ») et poser VELIB_HTTP_BACKEND=curl pour "
+        "présenter l'empreinte TLS et HTTP/2 d'un Chrome réel."
+    )
+
+
+def _detect_cloudflare_block(
+    response: Any, session: HttpSession | None = None
+) -> None:
     """Lève `CloudflareChallenge` si la réponse est un blocage et non la page.
+
+    Avant de lever, la réponse est vidée intégralement dans les journaux
+    (en-têtes, code d'erreur WAF, Ray ID, corps brut). C'est la seule façon de
+    diagnostiquer un blocage qui ne se produit que sur un runner : on ne peut
+    pas y attacher de débogueur, il faut que les journaux suffisent.
 
     Args:
         response: Réponse HTTP à inspecter.
+        session: Session émettrice, pour nommer le moteur dans le diagnostic.
 
     Raises:
         CloudflareChallenge: Si un challenge ou un blocage par IP est détecté.
     """
-    mitigated = response.headers.get("cf-mitigated", "").lower()
-    if mitigated != "challenge" and response.status_code not in (403, 503):
+    mitigated = ""
+    try:
+        mitigated = (response.headers.get("cf-mitigated") or "").lower()
+    except Exception:  # pragma: no cover - dépend du moteur
+        pass
+    if mitigated != "challenge" and response.status_code not in BLOCK_STATUSES:
         return
 
     # `response.text` peut être illisible si le corps est compressé dans un
-    # format que requests ne sait pas décoder ; on ne veut pas planter ici.
+    # format que le moteur ne sait pas décoder ; on ne veut pas planter ici.
     try:
         body = response.text[:4000].lower()
     except Exception:  # pragma: no cover - dépend de l'encodage reçu
         body = ""
 
+    http_client.dump_response(
+        response,
+        label=f"blocage probable sur {getattr(response, 'url', '?')}",
+        session=session,
+    )
+
+    waf = http_client.find_waf_error_code(body)
+    detail_waf = (
+        f" Code d'erreur WAF {waf} : "
+        f"{http_client.WAF_ERROR_CODES.get(waf, 'code non répertorié.')}"
+        if waf else ""
+    )
+    conseil = _conseil_selon_moteur(session)
+
+    # La limitation de débit passe en premier : elle se présente avec la même
+    # page que le 403, mais la parade est l'opposée. Changer d'empreinte ou de
+    # runner ne lève pas un compteur de débit — seule l'attente le fait.
+    if response.status_code == 429:
+        try:
+            retry_after = response.headers.get("retry-after")
+        except Exception:  # pragma: no cover - dépend du moteur
+            retry_after = None
+        raise CloudflareChallenge(
+            f"Limitation de débit sur {response.url} (HTTP 429)."
+            f"{_format_retry_after(retry_after)}{detail_waf} Ce n'est PAS un "
+            "problème d'empreinte TLS ni d'adresse IP : le compteur est déjà "
+            "armé pour l'appelant, et ni curl-impersonate ni un autre runner ne "
+            "le remettront à zéro. Attendre la fin de la fenêtre, et espacer "
+            "davantage les exécutions — une par jour suffit à ce projet."
+        )
+
     if any(marker in body for marker in IP_BLOCK_MARKERS):
         raise CloudflareChallenge(
             f"Accès refusé par Cloudflare sur {response.url} (HTTP "
-            f"{response.status_code}, page « site not reachable »). L'adresse IP "
-            "appelante est filtrée par réputation. Les runners GitHub Actions "
-            "hébergés partagent des plages Azure fréquemment bloquées : prévoir "
-            "un runner auto-hébergé sur une connexion résidentielle."
+            f"{response.status_code}, page de blocage).{detail_waf} Cloudflare "
+            "additionne la réputation de l'IP appelante et l'empreinte "
+            f"TLS/HTTP du client pour calculer un Threat Score. {conseil} "
+            "Les en-têtes et le corps complets de la réponse figurent "
+            "ci-dessus dans les journaux."
         )
 
     if mitigated == "challenge" or any(marker in body for marker in CHALLENGE_MARKERS):
         raise CloudflareChallenge(
             f"Challenge Cloudflare détecté sur {response.url} "
-            f"(HTTP {response.status_code}). L'IP appelante est probablement "
-            "classée comme centre de données."
+            f"(HTTP {response.status_code}).{detail_waf} {conseil}"
         )
 
     if response.status_code == 403:
         raise CloudflareChallenge(
-            f"HTTP 403 sur {response.url} sans marqueur identifiable. Vérifier "
-            "que le paquet Brotli est installé : sans lui, le corps de la "
-            "réponse est illisible et le diagnostic devient impossible."
+            f"HTTP 403 sur {response.url} sans marqueur de blocage "
+            f"identifiable.{detail_waf} Relire le vidage ci-dessus : si le corps "
+            "est annoncé indécodable, le paquet Brotli manque et le diagnostic "
+            f"est faussé. Sinon, {conseil[0].lower()}{conseil[1:]}"
         )
 
 
 def _request(
-    session: requests.Session, method: str, url: str, **kwargs: Any
-) -> requests.Response:
+    session: HttpSession, method: str, url: str, **kwargs: Any
+) -> Any:
     """Exécute une requête avec réessais sur erreurs réseau et 5xx transitoires.
 
     Args:
         session: Session HTTP porteuse des cookies.
         method: Verbe HTTP.
         url: URL cible.
-        **kwargs: Arguments transmis à `requests.Session.request`.
+        **kwargs: Arguments transmis à `Session.request`.
 
     Returns:
         La réponse HTTP obtenue.
@@ -178,13 +295,24 @@ def _request(
     for attempt in range(1, MAX_RETRIES + 1):
         try:
             response = session.request(method, url, timeout=REQUEST_TIMEOUT, **kwargs)
-        except requests.RequestException as exc:
+        # Les deux moteurs ont des hiérarchies d'exceptions distinctes :
+        # `curl_cffi` n'hérite pas de `requests.RequestException`. Sans cette
+        # agrégation, une coupure réseau sous le moteur `curl` échapperait aux
+        # réessais.
+        except http_client.network_errors() as exc:
             last_error = exc
             logger.warning(
                 "%s %s : %s (tentative %d/%d)", method, url, exc, attempt, MAX_RETRIES
             )
         else:
-            _detect_cloudflare_block(response)
+            if http_client.debug_enabled():
+                http_client.dump_response(
+                    response,
+                    label=f"{method} {url} (VELIB_HTTP_DEBUG actif)",
+                    session=session,
+                    level=logging.INFO,
+                )
+            _detect_cloudflare_block(response, session=session)
             if response.status_code >= 500:
                 last_error = VelibError(f"HTTP {response.status_code} sur {url}")
                 logger.warning(
@@ -529,14 +657,21 @@ def normalise_trip(record: dict[str, Any]) -> VelibTrip | None:
 # Étapes fonctionnelles
 # --------------------------------------------------------------------------- #
 
-def build_session() -> requests.Session:
-    """Crée une session HTTP portant les en-têtes d'un navigateur."""
-    session = requests.Session()
-    session.headers.update(BROWSER_HEADERS)
-    return session
+def build_session(backend: str | None = None) -> HttpSession:
+    """Crée une session HTTP portant l'empreinte et les en-têtes d'un navigateur.
+
+    Args:
+        backend: Moteur à forcer (`curl` ou `requests`). Par défaut, celui que
+            désigne `VELIB_HTTP_BACKEND`, soit `curl_cffi` (curl-impersonate)
+            dès qu'il est installé, `requests` sinon.
+
+    Returns:
+        Une session compatible `requests.Session`.
+    """
+    return http_client.build_session(backend)
 
 
-def login(session: requests.Session, username: str, password: str) -> None:
+def login(session: HttpSession, username: str, password: str) -> None:
     """Authentifie la session ; les cookies sont conservés dans le bocal de session.
 
     Args:
@@ -589,7 +724,16 @@ def login(session: requests.Session, username: str, password: str) -> None:
         },
     )
     if page.status_code != 200:
-        raise VelibError(f"GET /login a renvoyé HTTP {page.status_code}.")
+        # Ni un 403 ni un 5xx (déjà traités en amont) : le vidage est le seul
+        # moyen de savoir ce que le site a réellement renvoyé.
+        http_client.dump_response(
+            page, label=f"GET /login inattendu (HTTP {page.status_code})",
+            session=session,
+        )
+        raise VelibError(
+            f"GET /login a renvoyé HTTP {page.status_code}. En-têtes et corps "
+            "complets ci-dessus dans les journaux."
+        )
 
     _warn_if_captcha(page.text)
     csrf_token = _extract_csrf_token(page.text)
@@ -610,6 +754,15 @@ def login(session: requests.Session, username: str, password: str) -> None:
             "Origin": BASE_URL,
             "Referer": LOGIN_URL,
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            # Une soumission de formulaire est une navigation déclenchée par
+            # l'utilisateur depuis une page du même site. Sans ces valeurs, le
+            # moteur `curl` réinjecterait celles de son empreinte par défaut
+            # (`Sec-Fetch-Site: none`), qui décrivent une saisie d'URL à la main
+            # — incohérent avec l'Origin et le Referer envoyés juste au-dessus.
+            "Sec-Fetch-Dest": "document",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "same-origin",
+            "Sec-Fetch-User": "?1",
         },
         allow_redirects=True,
     )
@@ -617,15 +770,27 @@ def login(session: requests.Session, username: str, password: str) -> None:
     # 3. Vérification : une connexion réussie redirige vers /private/account.
     #    Un échec réaffiche /login avec un message d'erreur (HTTP 200).
     if "/private/" not in response.url:
+        # Deux causes possibles et indiscernables sans le corps : identifiants
+        # refusés (Symfony réaffiche /login en 200 avec un message) ou page
+        # interposée par Cloudflare. Le vidage tranche.
+        http_client.dump_response(
+            response,
+            label="POST /login sans redirection vers /private/account",
+            session=session,
+        )
         raise VelibError(
             "Authentification refusée : la redirection attendue vers /private/account "
-            f"n'a pas eu lieu (URL finale : {response.url}). Vérifier les identifiants."
+            f"n'a pas eu lieu (URL finale : {response.url}). Vérifier les identifiants, "
+            "et relire le vidage ci-dessus pour écarter une page Cloudflare."
         )
-    logger.info("Connexion Vélib' réussie (redirection vers %s).", response.url)
+    logger.info(
+        "Connexion Vélib' réussie (redirection vers %s ; cookies : %s).",
+        response.url, ", ".join(http_client.cookie_names(session)) or "aucun",
+    )
 
 
 def fetch_courses(
-    session: requests.Session, page_size: int = PAGE_SIZE, max_pages: int = 100
+    session: HttpSession, page_size: int = PAGE_SIZE, max_pages: int = 100
 ) -> list[dict[str, Any]]:
     """Récupère la totalité de l'historique via la pagination offset/limit.
 
@@ -646,6 +811,13 @@ def fetch_courses(
         "X-Requested-With": "XMLHttpRequest",
         "Cache-Control": "no-cache",
         "Pragma": "no-cache",
+        # Un appel XHR de l'application Angular, pas une navigation : c'est ce
+        # que Chrome annonce ici. À défaut, le moteur `curl` compléterait avec
+        # les valeurs de navigation de son empreinte, incohérentes avec
+        # X-Requested-With et l'Accept JSON.
+        "Sec-Fetch-Dest": "empty",
+        "Sec-Fetch-Mode": "cors",
+        "Sec-Fetch-Site": "same-origin",
     }
 
     trips: list[dict[str, Any]] = []
@@ -660,16 +832,35 @@ def fetch_courses(
         )
 
         if response.status_code in (301, 302, 401, 403):
-            raise VelibError("Session expirée ou non authentifiée sur getCourseList.")
+            http_client.dump_response(
+                response,
+                label=f"getCourseList non authentifié (HTTP {response.status_code})",
+                session=session,
+            )
+            raise VelibError(
+                "Session expirée ou non authentifiée sur getCourseList. En-têtes "
+                "et corps complets ci-dessus dans les journaux."
+            )
         if response.status_code != 200:
+            http_client.dump_response(
+                response,
+                label=f"getCourseList inattendu (HTTP {response.status_code})",
+                session=session,
+            )
             raise VelibError(f"getCourseList a renvoyé HTTP {response.status_code}.")
 
         try:
             payload = response.json()
         except ValueError as exc:
             # Symptôme classique : on a reçu du HTML (page de login ou challenge).
+            http_client.dump_response(
+                response,
+                label=f"getCourseList : réponse non JSON (offset={offset})",
+                session=session,
+            )
             raise VelibError(
-                f"Réponse non JSON sur getCourseList (offset={offset}) : {exc}"
+                f"Réponse non JSON sur getCourseList (offset={offset}) : {exc}. "
+                "Le corps reçu est vidé ci-dessus dans les journaux."
             ) from exc
 
         status = payload.get("actionStatus", {}).get("status")
@@ -717,6 +908,7 @@ def get_new_velib_trips(username: str, password: str) -> list[VelibTrip]:
         VelibError: En cas d'échec d'authentification ou de récupération.
     """
     session = build_session()
+    logger.info("Transport HTTP : %s.", http_client.describe_session(session))
     try:
         login(session, username, password)
         records = fetch_courses(session)
