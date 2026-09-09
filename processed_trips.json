@@ -15,11 +15,62 @@
     "2026-08-14T13:44:54Z": {
       "alias_of": "21651831317"
     },
+    "2026-08-16T23:17:34Z": {
+      "alias_of": "21658355161"
+    },
+    "2026-08-21T16:23:23Z": {
+      "alias_of": "21671531413"
+    },
+    "2026-08-22T18:58:23Z": {
+      "alias_of": "21674689399"
+    },
+    "2026-08-23T16:30:34Z": {
+      "alias_of": "21677133920"
+    },
+    "2026-08-24T09:18:59Z": {
+      "alias_of": "21678997680"
+    },
+    "2026-08-25T15:51:47Z": {
+      "alias_of": "21682956453"
+    },
+    "2026-08-25T20:53:06Z": {
+      "alias_of": "21683877231"
+    },
     "2026-08-28T19:35:18Z": {
       "alias_of": "21693059705"
     },
+    "2026-08-29T14:02:35Z": {
+      "alias_of": "21695137022"
+    },
+    "2026-08-31T09:50:38Z": {
+      "alias_of": "21700762575"
+    },
+    "2026-08-31T16:06:51Z": {
+      "alias_of": "21701732562"
+    },
+    "2026-09-02T06:43:31Z": {
+      "alias_of": "21707282737"
+    },
+    "2026-09-02T16:26:01Z": {
+      "alias_of": "21709204494"
+    },
+    "2026-09-03T16:23:45Z": {
+      "alias_of": "21713610793"
+    },
+    "2026-09-04T03:34:17Z": {
+      "alias_of": "21715596158"
+    },
     "2026-09-05T19:36:53Z": {
       "alias_of": "21723430775"
+    },
+    "2026-09-05T21:54:31Z": {
+      "alias_of": "21723859356"
+    },
+    "2026-09-05T22:28:56Z": {
+      "alias_of": "21723967001"
+    },
+    "2026-09-08T06:56:03Z": {
+      "alias_of": "21733671557"
     },
     "21637846595": {
       "duration_seconds": 667,
@@ -51,19 +102,137 @@
       "start_time": "2026-08-14T13:44:54Z",
       "synced_at": "2026-09-06T16:35:48Z"
     },
+    "21658355161": {
+      "duration_seconds": 1922,
+      "note": "openrouteservice",
+      "start_time": "2026-08-16T23:17:34Z",
+      "strava_activity_id": "20105461477",
+      "synced_at": "2026-09-09T16:58:53Z"
+    },
+    "21671531413": {
+      "duration_seconds": 390,
+      "note": "openrouteservice",
+      "start_time": "2026-08-21T16:23:23Z",
+      "strava_activity_id": "20105464120",
+      "synced_at": "2026-09-09T16:59:02Z"
+    },
+    "21674689399": {
+      "duration_seconds": 1323,
+      "note": "openrouteservice",
+      "start_time": "2026-08-22T18:58:23Z",
+      "strava_activity_id": "20105466749",
+      "synced_at": "2026-09-09T16:59:11Z"
+    },
+    "21677133920": {
+      "duration_seconds": 901,
+      "note": "openrouteservice",
+      "start_time": "2026-08-23T16:30:34Z",
+      "strava_activity_id": "20105471290",
+      "synced_at": "2026-09-09T16:59:22Z"
+    },
+    "21678997680": {
+      "duration_seconds": 1427,
+      "note": "openrouteservice",
+      "start_time": "2026-08-24T09:18:59Z",
+      "strava_activity_id": "20105474940",
+      "synced_at": "2026-09-09T16:59:31Z"
+    },
+    "21682956453": {
+      "duration_seconds": 691,
+      "note": "openrouteservice",
+      "start_time": "2026-08-25T15:51:47Z",
+      "strava_activity_id": "20105479877",
+      "synced_at": "2026-09-09T16:59:40Z"
+    },
+    "21683877231": {
+      "duration_seconds": 752,
+      "note": "openrouteservice",
+      "start_time": "2026-08-25T20:53:06Z",
+      "strava_activity_id": "20105483486",
+      "synced_at": "2026-09-09T16:59:49Z"
+    },
     "21693059705": {
       "duration_seconds": 1331,
       "note": "écarté : Station '20458486160' absente de l'open data Smovengo (station supprimée, ou identifiant d'un autre référentiel).",
       "start_time": "2026-08-28T19:35:18Z",
       "synced_at": "2026-09-06T16:36:03Z"
     },
+    "21695137022": {
+      "duration_seconds": 711,
+      "note": "openrouteservice",
+      "start_time": "2026-08-29T14:02:35Z",
+      "strava_activity_id": "20105485810",
+      "synced_at": "2026-09-09T16:59:58Z"
+    },
+    "21700762575": {
+      "duration_seconds": 1628,
+      "note": "openrouteservice",
+      "start_time": "2026-08-31T09:50:38Z",
+      "strava_activity_id": "20105488002",
+      "synced_at": "2026-09-09T17:00:07Z"
+    },
+    "21701732562": {
+      "duration_seconds": 1567,
+      "note": "openrouteservice",
+      "start_time": "2026-08-31T16:06:51Z",
+      "strava_activity_id": "20105490493",
+      "synced_at": "2026-09-09T17:00:16Z"
+    },
+    "21707282737": {
+      "duration_seconds": 1502,
+      "note": "openrouteservice",
+      "start_time": "2026-09-02T06:43:31Z",
+      "strava_activity_id": "20105493466",
+      "synced_at": "2026-09-09T17:00:25Z"
+    },
+    "21709204494": {
+      "duration_seconds": 457,
+      "note": "openrouteservice",
+      "start_time": "2026-09-02T16:26:01Z",
+      "strava_activity_id": "20105496015",
+      "synced_at": "2026-09-09T17:00:34Z"
+    },
+    "21713610793": {
+      "duration_seconds": 1764,
+      "note": "openrouteservice",
+      "start_time": "2026-09-03T16:23:45Z",
+      "strava_activity_id": "20105498684",
+      "synced_at": "2026-09-09T17:00:43Z"
+    },
+    "21715596158": {
+      "duration_seconds": 1596,
+      "note": "openrouteservice",
+      "start_time": "2026-09-04T03:34:17Z",
+      "strava_activity_id": "20105501743",
+      "synced_at": "2026-09-09T17:00:55Z"
+    },
     "21723430775": {
       "duration_seconds": 1044,
       "note": "écarté : Station '20458486160' absente de l'open data Smovengo (station supprimée, ou identifiant d'un autre référentiel).",
       "start_time": "2026-09-05T19:36:53Z",
       "synced_at": "2026-09-06T16:36:19Z"
+    },
+    "21723859356": {
+      "duration_seconds": 1294,
+      "note": "openrouteservice",
+      "start_time": "2026-09-05T21:54:31Z",
+      "strava_activity_id": "20105505205",
+      "synced_at": "2026-09-09T17:01:04Z"
+    },
+    "21723967001": {
+      "duration_seconds": 855,
+      "note": "doublon détecté par Strava",
+      "start_time": "2026-09-05T22:28:56Z",
+      "synced_at": "2026-09-09T17:01:10Z"
+    },
+    "21733671557": {
+      "duration_seconds": 1766,
+      "note": "openrouteservice",
+      "start_time": "2026-09-08T06:56:03Z",
+      "strava_activity_id": "20105509180",
+      "synced_at": "2026-09-09T17:01:23Z"
     }
   },
-  "updated_at": "2026-09-06T16:36:19Z",
+  "updated_at": "2026-09-09T17:01:23Z",
   "version": 1
 }
