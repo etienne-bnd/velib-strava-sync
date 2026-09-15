@@ -72,6 +72,9 @@
     "2026-09-08T06:56:03Z": {
       "alias_of": "21733671557"
     },
+    "2026-09-14T20:15:25Z": {
+      "alias_of": "21763610340"
+    },
     "21637846595": {
       "duration_seconds": 667,
       "note": "écarté : Station '20458486160' absente de l'open data Smovengo (station supprimée, ou identifiant d'un autre référentiel).",
@@ -231,8 +234,15 @@
       "start_time": "2026-09-08T06:56:03Z",
       "strava_activity_id": "20105509180",
       "synced_at": "2026-09-09T17:01:23Z"
+    },
+    "21763610340": {
+      "duration_seconds": 2308,
+      "note": "openrouteservice",
+      "start_time": "2026-09-14T20:15:25Z",
+      "strava_activity_id": "20178919594",
+      "synced_at": "2026-09-15T01:43:59Z"
     }
   },
-  "updated_at": "2026-09-09T17:01:23Z",
+  "updated_at": "2026-09-15T01:43:59Z",
   "version": 1
 }
