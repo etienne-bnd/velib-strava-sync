@@ -1,5 +1,92 @@
 {
   "processed": {
+    "2025-08-21T12:45:06Z": {
+      "alias_of": "20540315196"
+    },
+    "2025-08-21T12:45:56Z": {
+      "alias_of": "20540316784"
+    },
+    "2025-08-21T12:46:16Z": {
+      "alias_of": "20540317591"
+    },
+    "2025-08-21T12:46:36Z": {
+      "alias_of": "20540318197"
+    },
+    "2025-08-21T13:22:21Z": {
+      "alias_of": "20540395488"
+    },
+    "2025-08-21T13:22:43Z": {
+      "alias_of": "20540396223"
+    },
+    "2025-08-21T13:23:46Z": {
+      "alias_of": "20540398398"
+    },
+    "2025-08-21T13:24:38Z": {
+      "alias_of": "20540400291"
+    },
+    "2025-08-21T13:41:53Z": {
+      "alias_of": "20540437987"
+    },
+    "2025-08-21T13:43:11Z": {
+      "alias_of": "20540441316"
+    },
+    "2025-08-21T13:44:24Z": {
+      "alias_of": "20540444111"
+    },
+    "2025-08-21T13:44:59Z": {
+      "alias_of": "20540445475"
+    },
+    "2025-08-21T20:23:31Z": {
+      "alias_of": "20541569452"
+    },
+    "2025-08-21T20:24:06Z": {
+      "alias_of": "20541570814"
+    },
+    "2025-08-21T20:24:24Z": {
+      "alias_of": "20541571419"
+    },
+    "2025-08-21T20:24:40Z": {
+      "alias_of": "20541571946"
+    },
+    "2026-04-28T15:40:50Z": {
+      "alias_of": "21312048437"
+    },
+    "2026-04-28T18:20:33Z": {
+      "alias_of": "21312683469"
+    },
+    "2026-04-28T20:12:13Z": {
+      "alias_of": "21312976116"
+    },
+    "2026-04-29T02:36:37Z": {
+      "alias_of": "21313683080"
+    },
+    "2026-05-11T16:42:56Z": {
+      "alias_of": "21351335860"
+    },
+    "2026-05-12T07:07:31Z": {
+      "alias_of": "21353003793"
+    },
+    "2026-05-12T15:17:03Z": {
+      "alias_of": "21354170471"
+    },
+    "2026-05-12T15:43:22Z": {
+      "alias_of": "21354253762"
+    },
+    "2026-05-14T12:10:36Z": {
+      "alias_of": "21359597070"
+    },
+    "2026-05-14T15:50:42Z": {
+      "alias_of": "21359986182"
+    },
+    "2026-05-27T16:17:59Z": {
+      "alias_of": "21400478950"
+    },
+    "2026-05-27T16:21:57Z": {
+      "alias_of": "21400495889"
+    },
+    "2026-05-30T01:41:46Z": {
+      "alias_of": "21409440550"
+    },
     "2026-08-09T13:04:11Z": {
       "alias_of": "21637846595"
     },
@@ -62,6 +149,205 @@
     },
     "2026-09-05T19:36:53Z": {
       "alias_of": "21723430775"
+    },
+    "20540315196": {
+      "duration_seconds": 816,
+      "note": "doublon détecté par Strava",
+      "start_time": "2025-08-21T12:45:06Z",
+      "synced_at": "2026-09-15T15:56:01Z"
+    },
+    "20540316784": {
+      "duration_seconds": 844,
+      "note": "openrouteservice",
+      "start_time": "2025-08-21T12:45:56Z",
+      "strava_activity_id": "20186868028",
+      "synced_at": "2026-09-15T15:56:11Z"
+    },
+    "20540317591": {
+      "duration_seconds": 724,
+      "note": "openrouteservice",
+      "start_time": "2025-08-21T12:46:16Z",
+      "strava_activity_id": "20186870416",
+      "synced_at": "2026-09-15T15:56:20Z"
+    },
+    "20540318197": {
+      "duration_seconds": 757,
+      "note": "openrouteservice",
+      "start_time": "2025-08-21T12:46:36Z",
+      "strava_activity_id": "20186873415",
+      "synced_at": "2026-09-15T15:56:29Z"
+    },
+    "20540395488": {
+      "duration_seconds": 1193,
+      "note": "openrouteservice",
+      "start_time": "2025-08-21T13:22:21Z",
+      "strava_activity_id": "20186874790",
+      "synced_at": "2026-09-15T15:56:38Z"
+    },
+    "20540396223": {
+      "duration_seconds": 1138,
+      "note": "openrouteservice",
+      "start_time": "2025-08-21T13:22:43Z",
+      "strava_activity_id": "20186876878",
+      "synced_at": "2026-09-15T15:56:46Z"
+    },
+    "20540398398": {
+      "duration_seconds": 1095,
+      "note": "openrouteservice",
+      "start_time": "2025-08-21T13:23:46Z",
+      "strava_activity_id": "20186878802",
+      "synced_at": "2026-09-15T15:56:55Z"
+    },
+    "20540400291": {
+      "duration_seconds": 1011,
+      "note": "openrouteservice",
+      "start_time": "2025-08-21T13:24:38Z",
+      "strava_activity_id": "20186881660",
+      "synced_at": "2026-09-15T15:57:04Z"
+    },
+    "20540437987": {
+      "duration_seconds": 1184,
+      "note": "openrouteservice",
+      "start_time": "2025-08-21T13:41:53Z",
+      "strava_activity_id": "20186883051",
+      "synced_at": "2026-09-15T15:57:14Z"
+    },
+    "20540441316": {
+      "duration_seconds": 1113,
+      "note": "openrouteservice",
+      "start_time": "2025-08-21T13:43:11Z",
+      "strava_activity_id": "20186885343",
+      "synced_at": "2026-09-15T15:57:23Z"
+    },
+    "20540444111": {
+      "duration_seconds": 1064,
+      "note": "openrouteservice",
+      "start_time": "2025-08-21T13:44:24Z",
+      "strava_activity_id": "20186887822",
+      "synced_at": "2026-09-15T15:57:32Z"
+    },
+    "20540445475": {
+      "duration_seconds": 1006,
+      "note": "openrouteservice",
+      "start_time": "2025-08-21T13:44:59Z",
+      "strava_activity_id": "20186890204",
+      "synced_at": "2026-09-15T15:57:41Z"
+    },
+    "20541569452": {
+      "duration_seconds": 2493,
+      "note": "openrouteservice",
+      "start_time": "2025-08-21T20:23:31Z",
+      "strava_activity_id": "20186891951",
+      "synced_at": "2026-09-15T15:57:50Z"
+    },
+    "20541570814": {
+      "duration_seconds": 2461,
+      "note": "openrouteservice",
+      "start_time": "2025-08-21T20:24:06Z",
+      "strava_activity_id": "20186894124",
+      "synced_at": "2026-09-15T15:57:59Z"
+    },
+    "20541571419": {
+      "duration_seconds": 2457,
+      "note": "openrouteservice",
+      "start_time": "2025-08-21T20:24:24Z",
+      "strava_activity_id": "20186896698",
+      "synced_at": "2026-09-15T15:58:08Z"
+    },
+    "20541571946": {
+      "duration_seconds": 2412,
+      "note": "openrouteservice",
+      "start_time": "2025-08-21T20:24:40Z",
+      "strava_activity_id": "20186898763",
+      "synced_at": "2026-09-15T15:58:17Z"
+    },
+    "21312048437": {
+      "duration_seconds": 1488,
+      "note": "openrouteservice",
+      "start_time": "2026-04-28T15:40:50Z",
+      "strava_activity_id": "20186900924",
+      "synced_at": "2026-09-15T15:58:26Z"
+    },
+    "21312683469": {
+      "duration_seconds": 1261,
+      "note": "openrouteservice",
+      "start_time": "2026-04-28T18:20:33Z",
+      "strava_activity_id": "20186902865",
+      "synced_at": "2026-09-15T15:58:35Z"
+    },
+    "21312976116": {
+      "duration_seconds": 1535,
+      "note": "openrouteservice",
+      "start_time": "2026-04-28T20:12:13Z",
+      "strava_activity_id": "20186905558",
+      "synced_at": "2026-09-15T15:58:44Z"
+    },
+    "21313683080": {
+      "duration_seconds": 921,
+      "note": "openrouteservice",
+      "start_time": "2026-04-29T02:36:37Z",
+      "strava_activity_id": "20186906978",
+      "synced_at": "2026-09-15T15:58:53Z"
+    },
+    "21351335860": {
+      "duration_seconds": 1826,
+      "note": "openrouteservice",
+      "start_time": "2026-05-11T16:42:56Z",
+      "strava_activity_id": "20186909356",
+      "synced_at": "2026-09-15T15:59:02Z"
+    },
+    "21353003793": {
+      "duration_seconds": 1599,
+      "note": "openrouteservice",
+      "start_time": "2026-05-12T07:07:31Z",
+      "strava_activity_id": "20186911921",
+      "synced_at": "2026-09-15T15:59:11Z"
+    },
+    "21354170471": {
+      "duration_seconds": 1327,
+      "note": "openrouteservice",
+      "start_time": "2026-05-12T15:17:03Z",
+      "strava_activity_id": "20186914745",
+      "synced_at": "2026-09-15T15:59:20Z"
+    },
+    "21354253762": {
+      "duration_seconds": 445,
+      "note": "openrouteservice",
+      "start_time": "2026-05-12T15:43:22Z",
+      "strava_activity_id": "20186915904",
+      "synced_at": "2026-09-15T15:59:29Z"
+    },
+    "21359597070": {
+      "duration_seconds": 1466,
+      "note": "openrouteservice",
+      "start_time": "2026-05-14T12:10:36Z",
+      "strava_activity_id": "20186918260",
+      "synced_at": "2026-09-15T15:59:38Z"
+    },
+    "21359986182": {
+      "duration_seconds": 1158,
+      "note": "openrouteservice",
+      "start_time": "2026-05-14T15:50:42Z",
+      "strava_activity_id": "20186920787",
+      "synced_at": "2026-09-15T15:59:47Z"
+    },
+    "21400478950": {
+      "duration_seconds": 176,
+      "note": "écarté : Boucle de 2 min depuis Gare Saint-Lazare - Isly : itinéraire indéterminable (départ et arrivée confondus).",
+      "start_time": "2026-05-27T16:17:59Z",
+      "synced_at": "2026-09-15T16:04:03Z"
+    },
+    "21400495889": {
+      "duration_seconds": 191,
+      "note": "écarté : Boucle de 3 min depuis Gare Saint-Lazare - Isly : itinéraire indéterminable (départ et arrivée confondus).",
+      "start_time": "2026-05-27T16:21:57Z",
+      "synced_at": "2026-09-15T16:04:03Z"
+    },
+    "21409440550": {
+      "duration_seconds": 145,
+      "note": "écarté : Boucle de 2 min depuis Louis Blanc - Jemmapes : itinéraire indéterminable (départ et arrivée confondus).",
+      "start_time": "2026-05-30T01:41:46Z",
+      "synced_at": "2026-09-15T16:04:17Z"
     },
     "2026-09-05T21:54:31Z": {
       "alias_of": "21723859356"

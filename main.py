@@ -60,11 +60,31 @@ class TripSkipped(Exception):
 
 
 class CatalogDegraded(Exception):
-    """Le catalogue de stations ne peut pas résoudre les identifiants du trajet.
+    """Le catalogue ne sait résoudre AUCUN identifiant interne de station.
 
     C'est une panne systémique et temporaire, pas un défaut du trajet : le
     trajet ne doit surtout PAS être marqué comme traité, sans quoi il serait
     perdu définitivement dès la première exécution où Smovengo est injoignable.
+
+    Cette exception interrompt l'exécution entière, ce qui n'est justifié que
+    parce qu'aucun trajet suivant ne pourrait aboutir : elle est réservée au
+    catalogue issu du miroir Paris Open Data, qui n'expose que les codes à cinq
+    chiffres là où l'API Vélib' désigne ses stations par identifiant interne.
+    """
+
+
+class TripDeferred(Exception):
+    """Cette station-là est absente d'un catalogue par ailleurs exploitable.
+
+    Distinguer ce cas de `CatalogDegraded` est essentiel. Un cache Smovengo
+    périmé résout la quasi-totalité des trajets ; seules lui manquent les
+    stations créées après sa constitution. Traiter cette lacune ponctuelle
+    comme une panne générale a coûté 92 trajets sur 119 lors du rattrapage du
+    15 septembre 2026 : l'exécution s'est arrêtée au 27ᵉ trajet parce qu'une
+    seule station était inconnue.
+
+    Le trajet n'est pas marqué traité : il repartira à la prochaine exécution,
+    et aboutira dès que Smovengo sera de nouveau joignable.
     """
 
 
@@ -153,21 +173,37 @@ def resolve_stations(
         Le couple (station de départ, station d'arrivée).
 
     Raises:
-        TripSkipped: Si l'une des deux stations est introuvable.
+        CatalogDegraded: Si le catalogue ne résout aucun identifiant interne.
+        TripDeferred: Si le catalogue est simplement périmé et ignore CETTE
+            station.
+        TripSkipped: Si l'une des deux stations est introuvable dans un
+            catalogue faisant autorité — la station a donc réellement disparu.
     """
     try:
         departure = catalog.require(trip.departure_station_id)
         arrival = catalog.require(trip.arrival_station_id)
     except routing.StationNotFoundError as exc:
-        if not catalog.is_authoritative:
-            # Le catalogue ne fait pas autorité : l'absence de la station peut
-            # n'être qu'une lacune de la source de secours. Reporter, pas perdre.
+        stations = f"{trip.departure_station_id}/{trip.arrival_station_id}"
+
+        if not catalog.resolves_internal_ids:
+            # Le miroir n'expose que les codes à cinq chiffres : aucun trajet
+            # désigné par identifiant interne ne pourra aboutir. Inutile de
+            # dérouler les suivants, ils échoueront tous de la même façon.
             raise CatalogDegraded(
-                f"Station {trip.departure_station_id}/{trip.arrival_station_id} "
-                f"non résoluble avec un catalogue non autoritaire "
-                f"(source : {catalog.source}, périmé : {catalog.is_stale}). "
-                "Trajet reporté à la prochaine exécution."
+                f"Station {stations} non résoluble : le catalogue (source : "
+                f"{catalog.source}) ne publie pas les identifiants internes."
             ) from exc
+
+        if catalog.is_stale:
+            # Le catalogue résout bien les identifiants internes, il date
+            # simplement. Cette station-ci a pu être créée depuis : c'est une
+            # lacune ponctuelle, pas une panne. Reporter CE trajet et continuer.
+            raise TripDeferred(
+                f"Station {stations} absente du cache Smovengo périmé "
+                "(vraisemblablement créée depuis). Trajet reporté ; les "
+                "suivants sont tentés normalement."
+            ) from exc
+
         raise TripSkipped(str(exc)) from exc
     return departure, arrival
 
@@ -424,7 +460,7 @@ def run(settings: config.Config) -> int:
             logger.error("Authentification Strava impossible : %s", exc)
             return EXIT_FAILURE
 
-    uploaded = skipped = failed = 0
+    uploaded = skipped = failed = deferred = 0
 
     for index, trip in enumerate(candidates, start=1):
         logger.info(
@@ -444,6 +480,11 @@ def run(settings: config.Config) -> int:
             )
             failed += 1
             break
+        except TripDeferred as exc:
+            # Lacune ponctuelle du catalogue : on passe au trajet suivant sans
+            # rien marquer, pour le retenter quand Smovengo répondra.
+            logger.warning("Trajet %s reporté : %s", trip.trip_id, exc)
+            deferred += 1
         except TripSkipped as exc:
             # Trajet inexploitable de façon définitive : on le marque traité pour
             # ne pas le réexaminer à chaque exécution.
@@ -482,11 +523,20 @@ def run(settings: config.Config) -> int:
                 logger.error("Écriture de l'état impossible : %s", exc)
 
     logger.info(
-        "Bilan : %d envoyés, %d écartés, %d en échec.", uploaded, skipped, failed
+        "Bilan : %d envoyés, %d écartés, %d en échec, %d reportés.",
+        uploaded, skipped, failed, deferred,
     )
+    if deferred:
+        logger.info(
+            "Les %d trajets reportés le sont faute de station connue du cache : "
+            "ils repartiront d'eux-mêmes dès que l'open data Smovengo répondra.",
+            deferred,
+        )
 
     # Un échec transitoire isolé ne doit pas faire échouer le workflow entier :
-    # seul un échec général (aucun succès alors qu'il y avait du travail) le fait.
+    # seul un échec général (aucun succès alors qu'il y avait du travail) le
+    # fait. Un report n'est pas un échec : le trajet n'est pas perdu, il attend
+    # que Smovengo revienne.
     if failed and not uploaded and not skipped:
         return EXIT_FAILURE
     return EXIT_OK

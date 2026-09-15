@@ -338,6 +338,73 @@ def test_catalogue_degrade_arrete_la_boucle(
     assert len(appels) == 1
 
 
+@pytest.fixture
+def catalogue_perime(station_payload):
+    """Cache Smovengo périmé : résout les identifiants internes, mais date."""
+    catalogue = routing.StationCatalog.from_payload(station_payload)
+    catalogue.is_stale = True
+    return catalogue
+
+
+def test_cache_perime_reporte_le_trajet_sans_arreter_l_execution(
+    catalogue_perime, settings
+) -> None:
+    """Une station inconnue d'un cache périmé est une lacune, pas une panne.
+
+    Le cache Smovengo périmé résout la quasi-totalité des trajets ; seules lui
+    manquent les stations créées après sa constitution. Confondre cette lacune
+    ponctuelle avec la panne générale du miroir a coûté 92 trajets sur 119 lors
+    du rattrapage du 15 septembre 2026 : l'exécution s'est arrêtée au 27ᵉ
+    trajet parce qu'une seule station lui était inconnue.
+    """
+    trajet = _trip("t", depart="99999999", arrivee="16107")
+    with pytest.raises(main.TripDeferred):
+        process_trip(trajet, catalogue_perime, "jeton", settings)
+
+
+def test_un_report_n_interrompt_pas_les_trajets_suivants(
+    monkeypatch, catalogue_perime, settings
+) -> None:
+    """Contrairement à `CatalogDegraded`, un report laisse la boucle se dérouler."""
+    trajets = [_trip(f"t{i}", jours=i + 1) for i in range(5)]
+    appels = _installer_faux_modules(
+        monkeypatch, catalogue_perime, trajets,
+        main.TripDeferred("station absente du cache périmé"),
+    )
+    main.run(settings)
+
+    assert len(appels) == 5  # les cinq ont été tentés, aucun arrêt prématuré
+    etat = ProcessedTripsState.load(settings.state_file)
+    assert all(not etat.contains(t) for t in trajets)  # aucun n'est perdu
+
+
+def test_un_report_ne_fait_pas_echouer_l_execution(
+    monkeypatch, catalogue_perime, settings
+) -> None:
+    """Un trajet reporté attend Smovengo : ce n'est pas un échec du workflow."""
+    trajets = [_trip("t0", jours=1)]
+    _installer_faux_modules(
+        monkeypatch, catalogue_perime, trajets,
+        main.TripDeferred("station absente du cache périmé"),
+    )
+    assert main.run(settings) == main.EXIT_OK
+
+
+def test_station_absente_d_un_catalogue_faisant_autorite_est_ecartee(
+    station_payload, settings
+) -> None:
+    """Catalogue frais et complet : la station a réellement disparu du réseau.
+
+    Le trajet est alors définitivement inexploitable et doit être marqué traité,
+    sans quoi il serait réexaminé à chaque exécution jusqu'à la fin des temps.
+    """
+    catalogue = routing.StationCatalog.from_payload(station_payload)
+    assert catalogue.is_authoritative
+    trajet = _trip("t", depart="99999999", arrivee="16107")
+    with pytest.raises(main.TripSkipped):
+        process_trip(trajet, catalogue, "jeton", settings)
+
+
 # --------------------------------------------------------------------------- #
 # Contrôle de cohérence des distances
 # --------------------------------------------------------------------------- #

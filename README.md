@@ -1,37 +1,44 @@
 # Vélib' sur Strava
 
-Synchronise automatiquement l'historique de trajets [Vélib' Métropole](https://www.velib-metropole.fr)
-vers [Strava](https://www.strava.com) : chaque trajet est reconstitué en un
-itinéraire cyclable réaliste, horodaté, puis envoyé comme activité.
+Publie automatiquement les trajets [Vélib'](https://www.velib-metropole.fr)
+sur [Strava](https://www.strava.com)
 
-Le transport HTTP vers Vélib' passe par `curl-impersonate` afin de présenter
-l'empreinte TLS et HTTP/2 d'un Chrome réel — sans quoi Cloudflare refuse les
-requêtes émises depuis un runner GitHub Actions. Voir
-[Franchir Cloudflare](#franchir-cloudflare).
+## Mise en route
 
-## Fonctionnement
+Tout se passe sur GitHub : **aucune installation locale n'est nécessaire**. Le
+workflow installe les dépendances sur le runner à chaque exécution.
 
-```
-Vélib' (getCourseList)  ──►  trajets bruts
-        │
-Open data des stations  ──►  coordonnées GPS de départ et d'arrivée
-        │
-OpenRouteService        ──►  tracé cyclable réel (100 à 300 points)
-        │
-gpxpy                   ──►  GPX horodaté à vitesse constante
-        │
-Strava (POST /uploads)  ──►  activité créée
-        │
-processed_trips.json    ──►  mémoire, pour ne jamais créer de doublon
-```
+1. **Forker ce dépôt** (bouton *Fork*). Le
+   workflow doit tourner sur *votre* dépôt, avec *vos* secrets.
 
-## Installation
+2. **Activer les Actions** : onglet *Actions* → « I understand my workflows, go
+   ahead and enable them ». GitHub désactive par défaut les workflows d'un
+   dépôt forké, cron compris. Sans ce clic, la synchronisation quotidienne ne
+   se déclenchera jamais.
 
-```bash
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env      # puis renseigner les valeurs
-```
+3. **Repartir d'un état vierge** : remplacer le contenu de `processed_trips.json`
+   par `{"processed": {}}`. Ce fichier mémorise les trajets déjà envoyés par le
+   propriétaire du dépôt d'origine ; le garder ferait sauter des trajets.
+   En revanche, **conservez `stations_cache.json`** : c'est le référentiel de
+   secours des stations, et l'open data Smovengo est régulièrement injoignable.
+
+4. **Renseigner les six secrets** dans *Settings → Secrets and variables →
+   Actions* : `VELIB_USERNAME`, `VELIB_PASSWORD`, `STRAVA_CLIENT_ID`,
+   `STRAVA_CLIENT_SECRET`, `STRAVA_REFRESH_TOKEN`, `ORS_API_KEY`.
+   Voir [Obtenir les identifiants](#obtenir-les-identifiants) cela se fait
+   dans un navigateur, sans rien installer.
+
+5. **Premier essai à blanc** : *Actions → Synchronisation Vélib' vers Strava →
+   Run workflow*, avec `dry_run: true` et `max_trips: 1`. Rien n'est envoyé sur
+   Strava ; les journaux disent si les quatre API répondent.
+
+Ensuite, le workflow tourne seul chaque jour à 23h30 UTC et commite
+`processed_trips.json` pour conserver l'état d'une exécution à l'autre.
+
+> Sur un dépôt **public**, GitHub désactive les workflows planifiés après
+> 60 jours sans activité du dépôt. Les commits du bot ne relancent pas ce
+> compteur : si la synchronisation s'arrête sans raison après deux mois,
+> c'est là qu'il faut regarder.
 
 ### Obtenir les identifiants
 
@@ -58,30 +65,40 @@ curl -X POST https://www.strava.com/api/v3/oauth/token \
 
 Le champ `refresh_token` de la réponse est la valeur à conserver.
 
-## Utilisation
+## Installation locale (facultative)
+
+Inutile pour l'usage courant : elle ne sert qu'à diagnostiquer une panne, à
+modifier le code, ou à rattraper d'un coup un gros arriéré de trajets sans
+attendre le plafond quotidien.
+
+```bash
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env      # puis renseigner les mêmes valeurs que les secrets
+```
 
 ```bash
 python check_apis.py         # vérifie que les quatre API répondent
-python main.py --dry-run     # construit les GPX sans rien envoyer
-python main.py               # synchronisation réelle
-python main.py -v --max-trips 1   # premier envoi prudent, en mode bavard
 python probe_cloudflare.py   # diagnostique le pare-feu, sans identifiants
+python main.py --dry-run     # construit les GPX sans rien envoyer
+python main.py -v --max-trips 1   # premier envoi prudent, en mode bavard
+python main.py               # synchronisation réelle
+pytest                       # 242 tests, aucun appel réseau réel
 ```
 
-## Tests
+### Rattraper tout l'historique
+
+Par défaut, seuls les trajets des 30 derniers jours sont traités, 25 par
+exécution. Pour reprendre l'historique complet :
 
 ```bash
-pytest                       # 234 tests, aucun appel réseau réel
+MAX_TRIP_AGE_DAYS=0 python main.py --dry-run --max-trips 200 -v   # simulation
+MAX_TRIP_AGE_DAYS=0 python main.py --max-trips 30 -v              # puis par lots
 ```
 
-## Déploiement
-
-Le workflow `.github/workflows/sync.yml` s'exécute chaque jour à 23h30 UTC et
-commite `processed_trips.json` pour conserver l'état entre deux exécutions.
-
-Renseigner les six secrets dans **Settings → Secrets and variables → Actions** :
-`VELIB_USERNAME`, `VELIB_PASSWORD`, `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`,
-`STRAVA_REFRESH_TOKEN`, `ORS_API_KEY`.
+Procédez par lots d'une trentaine espacés d'un quart d'heure : chaque trajet
+consomme deux à trois appels Strava, et l'API en autorise cent par tranche de
+15 minutes. L'état déduplique, chaque lot reprend où le précédent s'est arrêté.
 
 ## Franchir Cloudflare
 
