@@ -315,6 +315,30 @@
     "2026-09-05T19:36:53Z": {
       "alias_of": "21723430775"
     },
+    "2026-09-05T21:54:31Z": {
+      "alias_of": "21723859356"
+    },
+    "2026-09-05T22:28:56Z": {
+      "alias_of": "21723967001"
+    },
+    "2026-09-08T06:56:03Z": {
+      "alias_of": "21733671557"
+    },
+    "2026-09-14T20:15:25Z": {
+      "alias_of": "21763610340"
+    },
+    "2026-09-15T07:54:35Z": {
+      "alias_of": "21765366901"
+    },
+    "2026-09-15T16:44:32Z": {
+      "alias_of": "21767301049"
+    },
+    "2026-09-16T15:25:21Z": {
+      "alias_of": "21771500708"
+    },
+    "2026-09-16T20:21:15Z": {
+      "alias_of": "21772865456"
+    },
     "20540315196": {
       "duration_seconds": 816,
       "note": "doublon détecté par Strava",
@@ -1024,8 +1048,60 @@
       "note": "écarté : Station '20458486160' absente de l'open data Smovengo (station supprimée, ou identifiant d'un autre référentiel).",
       "start_time": "2026-09-05T19:36:53Z",
       "synced_at": "2026-09-06T16:36:19Z"
+    },
+    "21723859356": {
+      "duration_seconds": 1294,
+      "note": "doublon détecté par Strava",
+      "start_time": "2026-09-05T21:54:31Z",
+      "synced_at": "2026-09-17T01:36:46Z"
+    },
+    "21723967001": {
+      "duration_seconds": 855,
+      "note": "doublon détecté par Strava",
+      "start_time": "2026-09-05T22:28:56Z",
+      "synced_at": "2026-09-17T01:36:52Z"
+    },
+    "21733671557": {
+      "duration_seconds": 1766,
+      "note": "doublon détecté par Strava",
+      "start_time": "2026-09-08T06:56:03Z",
+      "synced_at": "2026-09-17T01:36:58Z"
+    },
+    "21763610340": {
+      "duration_seconds": 2308,
+      "note": "doublon détecté par Strava",
+      "start_time": "2026-09-14T20:15:25Z",
+      "synced_at": "2026-09-17T01:37:04Z"
+    },
+    "21765366901": {
+      "duration_seconds": 1499,
+      "note": "openrouteservice",
+      "start_time": "2026-09-15T07:54:35Z",
+      "strava_activity_id": "20208157743",
+      "synced_at": "2026-09-17T01:37:14Z"
+    },
+    "21767301049": {
+      "duration_seconds": 1537,
+      "note": "openrouteservice",
+      "start_time": "2026-09-15T16:44:32Z",
+      "strava_activity_id": "20208158674",
+      "synced_at": "2026-09-17T01:37:23Z"
+    },
+    "21771500708": {
+      "duration_seconds": 1279,
+      "note": "openrouteservice",
+      "start_time": "2026-09-16T15:25:21Z",
+      "strava_activity_id": "20208159788",
+      "synced_at": "2026-09-17T01:37:32Z"
+    },
+    "21772865456": {
+      "duration_seconds": 1424,
+      "note": "openrouteservice",
+      "start_time": "2026-09-16T20:21:15Z",
+      "strava_activity_id": "20208161069",
+      "synced_at": "2026-09-17T01:37:41Z"
     }
   },
-  "updated_at": "2026-09-15T16:19:23Z",
+  "updated_at": "2026-09-17T01:37:41Z",
   "version": 1
 }
