@@ -387,6 +387,9 @@
     "2026-10-05T21:49:10Z": {
       "alias_of": "21858476784"
     },
+    "2026-10-08T16:43:36Z": {
+      "alias_of": "21870440198"
+    },
     "20540315196": {
       "duration_seconds": 816,
       "note": "doublon détecté par Strava",
@@ -1260,8 +1263,15 @@
       "start_time": "2026-10-05T21:49:10Z",
       "strava_activity_id": "20468748188",
       "synced_at": "2026-10-06T03:13:26Z"
+    },
+    "21870440198": {
+      "duration_seconds": 1213,
+      "note": "openrouteservice",
+      "start_time": "2026-10-08T16:43:36Z",
+      "strava_activity_id": "20510541372",
+      "synced_at": "2026-10-09T03:01:41Z"
     }
   },
-  "updated_at": "2026-10-06T03:13:26Z",
+  "updated_at": "2026-10-09T03:01:41Z",
   "version": 1
 }
