@@ -390,6 +390,24 @@
     "2026-10-08T16:43:36Z": {
       "alias_of": "21870440198"
     },
+    "2026-10-12T12:41:04Z": {
+      "alias_of": "21886465351"
+    },
+    "2026-10-12T16:24:41Z": {
+      "alias_of": "21887310598"
+    },
+    "2026-10-12T19:15:45Z": {
+      "alias_of": "21888098982"
+    },
+    "2026-10-13T07:54:42Z": {
+      "alias_of": "21889939319"
+    },
+    "2026-10-15T06:39:42Z": {
+      "alias_of": "21898680394"
+    },
+    "2026-10-16T22:39:54Z": {
+      "alias_of": "21906656468"
+    },
     "20540315196": {
       "duration_seconds": 816,
       "note": "doublon détecté par Strava",
@@ -1270,8 +1288,50 @@
       "start_time": "2026-10-08T16:43:36Z",
       "strava_activity_id": "20510541372",
       "synced_at": "2026-10-09T03:01:41Z"
+    },
+    "21886465351": {
+      "duration_seconds": 942,
+      "note": "openrouteservice",
+      "start_time": "2026-10-12T12:41:04Z",
+      "strava_activity_id": "20628537253",
+      "synced_at": "2026-10-18T01:23:13Z"
+    },
+    "21887310598": {
+      "duration_seconds": 1322,
+      "note": "openrouteservice",
+      "start_time": "2026-10-12T16:24:41Z",
+      "strava_activity_id": "20628538134",
+      "synced_at": "2026-10-18T01:23:22Z"
+    },
+    "21888098982": {
+      "duration_seconds": 1608,
+      "note": "openrouteservice",
+      "start_time": "2026-10-12T19:15:45Z",
+      "strava_activity_id": "20628542940",
+      "synced_at": "2026-10-18T01:24:11Z"
+    },
+    "21889939319": {
+      "duration_seconds": 1048,
+      "note": "openrouteservice",
+      "start_time": "2026-10-13T07:54:42Z",
+      "strava_activity_id": "20628544332",
+      "synced_at": "2026-10-18T01:24:24Z"
+    },
+    "21898680394": {
+      "duration_seconds": 1709,
+      "note": "openrouteservice",
+      "start_time": "2026-10-15T06:39:42Z",
+      "strava_activity_id": "20628545733",
+      "synced_at": "2026-10-18T01:24:37Z"
+    },
+    "21906656468": {
+      "duration_seconds": 1463,
+      "note": "openrouteservice",
+      "start_time": "2026-10-16T22:39:54Z",
+      "strava_activity_id": "20628547326",
+      "synced_at": "2026-10-18T01:24:50Z"
     }
   },
-  "updated_at": "2026-10-09T03:01:41Z",
+  "updated_at": "2026-10-18T01:24:50Z",
   "version": 1
 }
