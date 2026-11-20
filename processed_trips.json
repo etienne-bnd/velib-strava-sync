@@ -435,6 +435,15 @@
     "2026-11-11T02:03:22Z": {
       "alias_of": "22001199247"
     },
+    "2026-11-18T11:09:44Z": {
+      "alias_of": "22028215726"
+    },
+    "2026-11-18T17:00:36Z": {
+      "alias_of": "22029354862"
+    },
+    "2026-11-19T08:02:47Z": {
+      "alias_of": "22031721901"
+    },
     "20540315196": {
       "duration_seconds": 816,
       "note": "doublon détecté par Strava",
@@ -1420,8 +1429,29 @@
       "start_time": "2026-11-11T02:03:22Z",
       "strava_activity_id": "20941602971",
       "synced_at": "2026-11-11T02:56:16Z"
+    },
+    "22028215726": {
+      "duration_seconds": 1529,
+      "note": "openrouteservice",
+      "start_time": "2026-11-18T11:09:44Z",
+      "strava_activity_id": "21054457093",
+      "synced_at": "2026-11-20T04:09:54Z"
+    },
+    "22029354862": {
+      "duration_seconds": 695,
+      "note": "openrouteservice",
+      "start_time": "2026-11-18T17:00:36Z",
+      "strava_activity_id": "21054457520",
+      "synced_at": "2026-11-20T04:10:02Z"
+    },
+    "22031721901": {
+      "duration_seconds": 1428,
+      "note": "openrouteservice",
+      "start_time": "2026-11-19T08:02:47Z",
+      "strava_activity_id": "21054457997",
+      "synced_at": "2026-11-20T04:10:11Z"
     }
   },
-  "updated_at": "2026-11-11T02:56:16Z",
+  "updated_at": "2026-11-20T04:10:11Z",
   "version": 1
 }
