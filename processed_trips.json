@@ -444,6 +444,9 @@
     "2026-11-19T08:02:47Z": {
       "alias_of": "22031721901"
     },
+    "2026-11-20T21:35:28Z": {
+      "alias_of": "22038245872"
+    },
     "20540315196": {
       "duration_seconds": 816,
       "note": "doublon détecté par Strava",
@@ -1450,8 +1453,14 @@
       "start_time": "2026-11-19T08:02:47Z",
       "strava_activity_id": "21054457997",
       "synced_at": "2026-11-20T04:10:11Z"
+    },
+    "22038245872": {
+      "duration_seconds": 1394,
+      "note": "écarté : Station '20458486160' absente de l'open data Smovengo (station supprimée, ou identifiant d'un autre référentiel).",
+      "start_time": "2026-11-20T21:35:28Z",
+      "synced_at": "2026-11-22T03:21:30Z"
     }
   },
-  "updated_at": "2026-11-20T04:10:11Z",
+  "updated_at": "2026-11-22T03:21:30Z",
   "version": 1
 }
